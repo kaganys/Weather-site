@@ -163,10 +163,14 @@ function bindAutocomplete(fieldName, input, suggestionBox) {
   });
 
   input.addEventListener("focus", () => {
-    const query = input.value.trim();
-    if (query.length >= AUTOCOMPLETE_MINIMUM) {
-      queueSuggestions(fieldName, query, suggestionBox, 0);
-    }
+    const field = input.closest(".autocomplete-field");
+    field?.classList.remove("is-open");
+  });
+
+  input.addEventListener("blur", () => {
+    window.setTimeout(() => {
+      hideSuggestions(fieldName, suggestionBox);
+    }, 120);
   });
 
   input.addEventListener("keydown", (event) => {
@@ -201,11 +205,11 @@ function queueSuggestions(fieldName, query, suggestionBox, delay = 140) {
   if (query.length < AUTOCOMPLETE_MINIMUM) {
     state.suggestionResults[fieldName] = [];
     state.suggestionIndex[fieldName] = -1;
-    hideSuggestions(suggestionBox);
+    hideSuggestions(fieldName, suggestionBox);
     return;
   }
 
-  renderSuggestionState(suggestionBox, "Searching addresses...");
+  renderSuggestionState(fieldName, suggestionBox, "Searching addresses...");
 
   state.suggestionTimers[fieldName] = window.setTimeout(async () => {
     if (state.suggestionControllers[fieldName]) {
@@ -222,7 +226,7 @@ function queueSuggestions(fieldName, query, suggestionBox, delay = 140) {
       renderSuggestions(fieldName, suggestionBox);
     } catch (error) {
       if (error.name !== "AbortError") {
-        renderSuggestionState(suggestionBox, "Suggestion lookup failed.");
+        renderSuggestionState(fieldName, suggestionBox, "Suggestion lookup failed.");
       }
     }
   }, delay);
@@ -233,7 +237,7 @@ function handleAutocompleteKeydown(event, fieldName, suggestionBox) {
   const hasSuggestionsOpen = !suggestionBox.hidden && suggestions.length > 0;
 
   if (event.key === "Escape") {
-    hideSuggestions(suggestionBox);
+    hideSuggestions(fieldName, suggestionBox);
     return;
   }
 
@@ -255,7 +259,7 @@ function handleAutocompleteKeydown(event, fieldName, suggestionBox) {
     event.preventDefault();
     const selected = suggestions[state.suggestionIndex[fieldName]];
     selectSuggestion(fieldName, selected);
-    hideSuggestions(suggestionBox);
+    hideSuggestions(fieldName, suggestionBox);
   }
 }
 
@@ -287,7 +291,7 @@ function renderSuggestions(fieldName, suggestionBox) {
   suggestionBox.innerHTML = "";
 
   if (!suggestions.length) {
-    renderSuggestionState(suggestionBox, "No matching addresses yet.");
+    renderSuggestionState(fieldName, suggestionBox, "No matching addresses yet.");
     return;
   }
 
@@ -311,23 +315,33 @@ function renderSuggestions(fieldName, suggestionBox) {
 
     button.addEventListener("click", () => {
       selectSuggestion(fieldName, place);
-      hideSuggestions(suggestionBox);
+      hideSuggestions(fieldName, suggestionBox);
     });
 
     suggestionBox.appendChild(button);
   });
 
   suggestionBox.hidden = false;
+  setAutocompleteOpen(fieldName, true);
 }
 
-function renderSuggestionState(suggestionBox, message) {
+function renderSuggestionState(fieldName, suggestionBox, message) {
   suggestionBox.hidden = false;
   suggestionBox.innerHTML = `<div class="suggestion-state">${escapeHtml(message)}</div>`;
+  setAutocompleteOpen(fieldName, true);
 }
 
-function hideSuggestions(suggestionBox) {
+function hideSuggestions(fieldName, suggestionBox) {
+  clearTimeout(state.suggestionTimers[fieldName]);
+
+  if (state.suggestionControllers[fieldName]) {
+    state.suggestionControllers[fieldName].abort();
+    state.suggestionControllers[fieldName] = null;
+  }
+
   suggestionBox.hidden = true;
   suggestionBox.innerHTML = "";
+  setAutocompleteOpen(fieldName, false);
 }
 
 function selectSuggestion(fieldName, place) {
@@ -340,9 +354,15 @@ function handleDocumentClick(event) {
   const insideAutocomplete = event.target.closest("[data-autocomplete]");
 
   if (!insideAutocomplete) {
-    hideSuggestions(sourceSuggestions);
-    hideSuggestions(destinationSuggestions);
+    hideSuggestions("source", sourceSuggestions);
+    hideSuggestions("destination", destinationSuggestions);
   }
+}
+
+function setAutocompleteOpen(fieldName, isOpen) {
+  const input = fieldName === "source" ? sourceInput : destinationInput;
+  const field = input.closest(".autocomplete-field");
+  field?.classList.toggle("is-open", isOpen);
 }
 
 async function handleSubmit(event) {
