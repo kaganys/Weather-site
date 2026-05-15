@@ -304,18 +304,15 @@ function renderSuggestions(fieldName, suggestionBox) {
       <span class="suggestion-meta">${escapeHtml(place.context)}</span>
     `;
 
-    button.addEventListener("mousedown", (event) => {
+    button.addEventListener("pointerdown", (event) => {
       event.preventDefault();
+      selectSuggestion(fieldName, place);
+      hideSuggestions(fieldName, suggestionBox);
     });
 
     button.addEventListener("mouseenter", () => {
       state.suggestionIndex[fieldName] = index;
       renderSuggestions(fieldName, suggestionBox);
-    });
-
-    button.addEventListener("click", () => {
-      selectSuggestion(fieldName, place);
-      hideSuggestions(fieldName, suggestionBox);
     });
 
     suggestionBox.appendChild(button);
@@ -348,6 +345,7 @@ function selectSuggestion(fieldName, place) {
   state.selectedPlaces[fieldName] = place;
   const input = fieldName === "source" ? sourceInput : destinationInput;
   input.value = place.label;
+  input.dispatchEvent(new Event("change", { bubbles: true }));
 }
 
 function handleDocumentClick(event) {
@@ -1079,7 +1077,7 @@ async function refreshSynagogueMarkers() {
     return;
   }
 
-  if (state.map.getZoom() < 10) {
+  if (state.map.getZoom() < 8) {
     state.layers.synagogues.clearLayers();
     state.synagogueMarkersCount = 0;
 
@@ -1117,13 +1115,16 @@ async function fetchOrthodoxSynagogues(bounds, signal) {
   const west = bounds.getWest();
   const north = bounds.getNorth();
   const east = bounds.getEast();
-  const denominationPattern = "^(orthodox|modern_orthodox|neo_orthodox|orthodox_ashkenaz|orthodox_sefard|ultra_orthodox|hasidic|lubavitch|lubavitch_messianic)$";
+  const denominationPattern = "orthodox|modern_orthodox|neo_orthodox|orthodox_ashkenaz|orthodox_sefard|ultra_orthodox|hasidic|haredi|chassidic|lubavitch";
   const query = `
 [out:json][timeout:20];
 (
-  node["amenity"="place_of_worship"]["religion"="jewish"]["denomination"~"${denominationPattern}"](${south},${west},${north},${east});
-  way["amenity"="place_of_worship"]["religion"="jewish"]["denomination"~"${denominationPattern}"](${south},${west},${north},${east});
-  relation["amenity"="place_of_worship"]["religion"="jewish"]["denomination"~"${denominationPattern}"](${south},${west},${north},${east});
+  node["religion"="jewish"]["amenity"="place_of_worship"](${south},${west},${north},${east});
+  way["religion"="jewish"]["amenity"="place_of_worship"](${south},${west},${north},${east});
+  relation["religion"="jewish"]["amenity"="place_of_worship"](${south},${west},${north},${east});
+  node["building"="synagogue"](${south},${west},${north},${east});
+  way["building"="synagogue"](${south},${west},${north},${east});
+  relation["building"="synagogue"](${south},${west},${north},${east});
 );
 out center tags;
   `.trim();
@@ -1142,7 +1143,12 @@ out center tags;
   }
 
   const data = await response.json();
-  return (data.elements ?? []).map((element) => normalizeSynagogue(element));
+  const matches = (data.elements ?? [])
+    .map((element) => normalizeSynagogue(element))
+    .filter((synagogue) => isLikelyOrthodoxSynagogue(synagogue));
+
+  const uniqueMatches = dedupeSynagogues(matches);
+  return uniqueMatches;
 }
 
 function normalizeSynagogue(element) {
@@ -1161,10 +1167,60 @@ function normalizeSynagogue(element) {
     longitude,
     name: tags.name || "Orthodox synagogue",
     denomination: tags.denomination || "orthodox",
+    operator: tags.operator || "",
+    brand: tags.brand || "",
+    description: tags.description || "",
     address: addressBits.join(", "),
     website: tags.website || tags.contact_website || "",
     phone: tags.phone || tags.contact_phone || ""
   };
+}
+
+function isLikelyOrthodoxSynagogue(synagogue) {
+  const haystack = [
+    synagogue.name,
+    synagogue.denomination,
+    synagogue.operator,
+    synagogue.brand,
+    synagogue.description
+  ].join(" ").toLowerCase();
+
+  const orthodoxSignals = [
+    "orthodox",
+    "modern orthodox",
+    "neo orthodox",
+    "chabad",
+    "lubavitch",
+    "hasid",
+    "chasid",
+    "haredi",
+    "shul",
+    "beis",
+    "bais",
+    "ohel",
+    "yeshiva"
+  ];
+
+  return orthodoxSignals.some((signal) => haystack.includes(signal));
+}
+
+function dedupeSynagogues(synagogues) {
+  const seen = new Set();
+
+  return synagogues.filter((synagogue) => {
+    const key = [
+      synagogue.name.toLowerCase(),
+      synagogue.latitude.toFixed(5),
+      synagogue.longitude.toFixed(5)
+    ].join("|");
+
+    if (seen.has(key)) {
+      return false;
+    }
+
+    seen.add(key);
+    return true;
+  });
 }
 
 function renderSynagogueMarkers(synagogues) {
