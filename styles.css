@@ -189,6 +189,12 @@ body::before {
   gap: 10px;
 }
 
+.field-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
 .field label,
 .field-head label {
   font-size: 0.92rem;
@@ -206,6 +212,30 @@ body::before {
   font-size: 0.72rem;
   text-transform: uppercase;
   letter-spacing: 0.08em;
+}
+
+.mini-chip {
+  border: 1px solid rgba(20, 36, 50, 0.1);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  cursor: pointer;
+  font-size: 0.78rem;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.mini-chip:hover,
+.mini-chip:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(11, 139, 119, 0.24);
+}
+
+.mini-chip:disabled {
+  cursor: wait;
+  opacity: 0.75;
 }
 
 input,
@@ -665,6 +695,52 @@ select:focus {
   position: relative;
 }
 
+.directions-overview {
+  display: grid;
+  gap: 12px;
+  margin-top: 16px;
+  padding: 16px;
+  border-radius: 20px;
+  border: 1px solid rgba(20, 36, 50, 0.08);
+  background: rgba(255, 255, 255, 0.84);
+}
+
+.directions-overview.empty {
+  color: var(--muted);
+}
+
+.directions-overview p {
+  margin: 0;
+  line-height: 1.55;
+}
+
+.directions-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.directions-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 14px;
+  border-radius: 999px;
+  border: 1px solid rgba(20, 36, 50, 0.1);
+  background: rgba(255, 255, 255, 0.72);
+  color: var(--ink);
+  text-decoration: none;
+  transition: transform 150ms ease, background 150ms ease, border-color 150ms ease;
+}
+
+.directions-link:hover,
+.directions-link:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  background: rgba(255, 255, 255, 0.96);
+  border-color: rgba(11, 139, 119, 0.24);
+}
+
 .timeline::before {
   content: "";
   position: absolute;
@@ -948,7 +1024,9 @@ select:focus {
 
   .quick-times,
   .map-toolbar,
-  .map-legend {
+  .map-legend,
+  .directions-actions,
+  .field-actions {
     flex-direction: column;
     align-items: stretch;
   }

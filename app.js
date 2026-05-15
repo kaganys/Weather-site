@@ -6,6 +6,7 @@ const destinationSuggestions = document.getElementById("destinationSuggestions")
 const departureTimeInput = document.getElementById("departureTime");
 const profileInput = document.getElementById("profile");
 const showDirectionsInput = document.getElementById("showDirections");
+const useMyLocationButton = document.getElementById("useMyLocation");
 const submitButton = document.getElementById("submitButton");
 const swapTripButton = document.getElementById("swapTrip");
 const recenterMapButton = document.getElementById("recenterMap");
@@ -16,6 +17,7 @@ const resultsTitle = document.getElementById("resultsTitle");
 const summary = document.getElementById("summary");
 const timeline = document.getElementById("timeline");
 const directionsList = document.getElementById("directionsList");
+const directionsOverview = document.getElementById("directionsOverview");
 const directionsSection = document.getElementById("directionsSection");
 const notice = document.getElementById("notice");
 const statusBadge = document.getElementById("statusBadge");
@@ -104,6 +106,7 @@ function initialize() {
   bindQuickTimeButtons();
   form.addEventListener("submit", handleSubmit);
   showDirectionsInput.addEventListener("change", updateDirectionsVisibility);
+  useMyLocationButton.addEventListener("click", handleUseMyLocation);
   swapTripButton.addEventListener("click", handleSwapTrip);
   recenterMapButton.addEventListener("click", recenterMapToRoute);
   toggleMarkersButton.addEventListener("click", handleToggleMarkers);
@@ -461,6 +464,28 @@ async function geocodeLocation(query) {
   return normalizeNominatimPlace(place);
 }
 
+async function reverseGeocodeFullPlace(latitude, longitude) {
+  const url = new URL("https://nominatim.openstreetmap.org/reverse");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("lat", String(latitude));
+  url.searchParams.set("lon", String(longitude));
+  url.searchParams.set("zoom", "18");
+  url.searchParams.set("addressdetails", "1");
+
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not look up your current location.");
+  }
+
+  const place = await response.json();
+  return normalizeNominatimPlace(place);
+}
+
 function normalizeNominatimPlace(place) {
   const address = place.address ?? {};
   const mainName = [
@@ -733,7 +758,7 @@ function renderTrip(tripData) {
   resultsTitle.textContent = `${sourcePlace.shortName} to ${destinationPlace.shortName}`;
   renderSummary(sourcePlace, destinationPlace, route, departureDate, checkpoints, directions);
   renderTimeline(checkpoints);
-  renderDirections(directions);
+  renderDirections(tripData);
   renderMap(sourcePlace, destinationPlace, route, checkpoints);
   renderMapLegend(route, checkpoints);
   mapEmpty.classList.add("is-hidden");
@@ -823,9 +848,11 @@ function renderTimeline(checkpoints) {
   });
 }
 
-function renderDirections(directions) {
+function renderDirections(tripData) {
+  const { directions, sourcePlace, destinationPlace, route } = tripData;
   directionsList.classList.remove("empty");
   directionsList.innerHTML = "";
+  renderDirectionsOverview(sourcePlace, destinationPlace, route, directions);
 
   if (!directions.length) {
     directionsList.innerHTML = `
@@ -850,6 +877,22 @@ function renderDirections(directions) {
   });
 
   updateDirectionsVisibility();
+}
+
+function renderDirectionsOverview(sourcePlace, destinationPlace, route, directions) {
+  directionsOverview.classList.remove("empty");
+  const googleMapsUrl = buildGoogleMapsUrl(sourcePlace, destinationPlace);
+  const openStreetMapUrl = buildOpenStreetMapDirectionsUrl(sourcePlace, destinationPlace);
+
+  directionsOverview.innerHTML = `
+    <p><strong>From:</strong> ${escapeHtml(sourcePlace.label)}</p>
+    <p><strong>To:</strong> ${escapeHtml(destinationPlace.label)}</p>
+    <p><strong>Route:</strong> ${escapeHtml(formatDuration(route.durationSeconds))} • ${escapeHtml(String(Math.round(route.distanceMeters * 0.000621371)))} mi • ${escapeHtml(String(directions.length))} steps</p>
+    <div class="directions-actions">
+      <a class="directions-link" href="${escapeHtml(googleMapsUrl)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
+      <a class="directions-link" href="${escapeHtml(openStreetMapUrl)}" target="_blank" rel="noreferrer">Open in OpenStreetMap</a>
+    </div>
+  `;
 }
 
 function renderMap(sourcePlace, destinationPlace, route, checkpoints) {
@@ -1063,6 +1106,48 @@ function handleJumpToDirections() {
 
 function updateDirectionsVisibility() {
   directionsSection.classList.toggle("is-hidden", !showDirectionsInput.checked);
+}
+
+async function handleUseMyLocation() {
+  if (!("geolocation" in navigator)) {
+    renderNotice("Your browser does not support location access.");
+    return;
+  }
+
+  useMyLocationButton.disabled = true;
+  useMyLocationButton.textContent = "Locating...";
+  clearNotice();
+
+  try {
+    const position = await new Promise((resolve, reject) => {
+      navigator.geolocation.getCurrentPosition(resolve, reject, {
+        enableHighAccuracy: true,
+        timeout: 10000,
+        maximumAge: 300000
+      });
+    });
+
+    const place = await reverseGeocodeFullPlace(
+      position.coords.latitude,
+      position.coords.longitude
+    );
+
+    state.selectedPlaces.source = place;
+    sourceInput.value = place.label;
+    sourceInput.dispatchEvent(new Event("change", { bubbles: true }));
+    renderNotice(`Using your current location: ${place.shortName}.`);
+
+    if (state.map) {
+      state.map.flyTo([place.latitude, place.longitude], Math.max(state.map.getZoom(), 12), {
+        duration: 0.7
+      });
+    }
+  } catch (error) {
+    renderNotice("Could not access your location. Check browser permission and try again.");
+  } finally {
+    useMyLocationButton.disabled = false;
+    useMyLocationButton.textContent = "Use my location";
+  }
 }
 
 function scheduleSynagogueRefresh() {
@@ -1394,6 +1479,23 @@ function humanizeModifier(modifier) {
 
 function humanizeSynagogueDenomination(denomination) {
   return denomination.replaceAll("_", " ");
+}
+
+function buildGoogleMapsUrl(sourcePlace, destinationPlace) {
+  const url = new URL("https://www.google.com/maps/dir/");
+  url.searchParams.set("api", "1");
+  url.searchParams.set("origin", `${sourcePlace.latitude},${sourcePlace.longitude}`);
+  url.searchParams.set("destination", `${destinationPlace.latitude},${destinationPlace.longitude}`);
+  url.searchParams.set("travelmode", profileInput.value === "walking" ? "walking" : profileInput.value === "cycling" ? "bicycling" : "driving");
+  return url.toString();
+}
+
+function buildOpenStreetMapDirectionsUrl(sourcePlace, destinationPlace) {
+  const engine = profileInput.value === "walking" ? "foot" : profileInput.value === "cycling" ? "cycle" : "fossgis_osrm_car";
+  const url = new URL("https://www.openstreetmap.org/directions");
+  url.searchParams.set("engine", engine);
+  url.searchParams.set("route", `${sourcePlace.latitude},${sourcePlace.longitude};${destinationPlace.latitude},${destinationPlace.longitude}`);
+  return url.toString();
 }
 
 function formatDistance(distanceMeters) {

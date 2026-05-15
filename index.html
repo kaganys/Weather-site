@@ -45,7 +45,10 @@
           <div class="field autocomplete-field" data-autocomplete="source">
             <div class="field-head">
               <label for="source">Starting address</label>
-              <span class="field-tag">Live</span>
+              <div class="field-actions">
+                <button id="useMyLocation" class="mini-chip" type="button">Use my location</button>
+                <span class="field-tag">Live</span>
+              </div>
             </div>
             <div class="input-stack">
               <input id="source" name="source" type="text" placeholder="350 5th Ave, New York, NY" autocomplete="off" required>
@@ -174,6 +177,9 @@
                 <h3>Actual turn-by-turn steps</h3>
               </div>
               <p class="section-note">Tap a step to focus it on the map</p>
+            </div>
+            <div id="directionsOverview" class="directions-overview empty">
+              <p>Build a route to see the full directions overview.</p>
             </div>
             <div id="directionsList" class="directions-list empty">
               <div class="empty-state compact">
