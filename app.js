@@ -926,13 +926,18 @@ function renderMapLegend(route, checkpoints) {
   const wettestCheckpoint = [...checkpoints].sort(
     (left, right) => right.precipitationProbability - left.precipitationProbability
   )[0];
+  const synagogueText = state.synagoguesVisible
+    ? state.synagogueMarkersCount > 0
+      ? `${state.synagogueMarkersCount} Orthodox shuls in view`
+      : "No Orthodox shuls found in current view"
+    : "Orthodox shul layer hidden";
 
   mapLegend.classList.remove("empty");
   mapLegend.innerHTML = `
     <span class="legend-chip">${capitalize(profileInput.value)}</span>
     <span class="legend-chip">${Math.round(route.distanceMeters * 0.000621371)} miles</span>
     <span class="legend-chip">${checkpoints.length} half-hour weather stops</span>
-    <span class="legend-chip">${state.synagoguesVisible ? `${state.synagogueMarkersCount} Orthodox shuls in view` : "Orthodox shul layer hidden"}</span>
+    <span class="legend-chip">${synagogueText}</span>
     <span class="legend-chip">Wettest near ${escapeHtml(wettestCheckpoint.cityName)}</span>
   `;
 }
@@ -1162,7 +1167,7 @@ async function refreshSynagogueMarkers() {
     return;
   }
 
-  if (state.map.getZoom() < 8) {
+  if (state.map.getZoom() < 7) {
     state.layers.synagogues.clearLayers();
     state.synagogueMarkersCount = 0;
 
@@ -1201,6 +1206,7 @@ async function fetchOrthodoxSynagogues(bounds, signal) {
   const north = bounds.getNorth();
   const east = bounds.getEast();
   const denominationPattern = "orthodox|modern_orthodox|neo_orthodox|orthodox_ashkenaz|orthodox_sefard|ultra_orthodox|hasidic|haredi|chassidic|lubavitch";
+  const orthodoxNamePattern = "(?i)(orthodox|shul|shtiebel|shtibel|chabad|lubavitch|young israel|beis |bais |beth |ohev|ohel|agudas|agudath|yeshiva|kollel|minyan|sefard|sephard)";
   const query = `
 [out:json][timeout:20];
 (
@@ -1210,6 +1216,12 @@ async function fetchOrthodoxSynagogues(bounds, signal) {
   node["building"="synagogue"](${south},${west},${north},${east});
   way["building"="synagogue"](${south},${west},${north},${east});
   relation["building"="synagogue"](${south},${west},${north},${east});
+  node["amenity"="place_of_worship"]["name"~"${orthodoxNamePattern}"](${south},${west},${north},${east});
+  way["amenity"="place_of_worship"]["name"~"${orthodoxNamePattern}"](${south},${west},${north},${east});
+  relation["amenity"="place_of_worship"]["name"~"${orthodoxNamePattern}"](${south},${west},${north},${east});
+  node["name"~"${orthodoxNamePattern}"](${south},${west},${north},${east});
+  way["name"~"${orthodoxNamePattern}"](${south},${west},${north},${east});
+  relation["name"~"${orthodoxNamePattern}"](${south},${west},${north},${east});
 );
 out center tags;
   `.trim();
@@ -1323,6 +1335,10 @@ function renderSynagogueMarkers(synagogues) {
     });
 
   state.synagogueMarkersCount = synagogues.length;
+
+  if (state.synagoguesVisible && synagogues.length === 0 && state.routeData) {
+    renderNotice("No Orthodox shuls were found in this map view from OpenStreetMap tags. Try zooming in further or use the GoDaven button for a broader database.");
+  }
 }
 
 function buildSynagoguePopup(synagogue) {

@@ -379,6 +379,13 @@ select:focus {
   border-color: rgba(11, 139, 119, 0.24);
 }
 
+.chip-link {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  text-decoration: none;
+}
+
 .toggle-card {
   display: flex;
   gap: 14px;
