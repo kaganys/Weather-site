@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Road Weather Planner</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="page-shell">
+    <header class="hero">
+      <p class="eyebrow">Trip Timing Weather</p>
+      <h1>See the forecast you will drive into, not just the one you leave in.</h1>
+      <p class="hero-copy">
+        Enter a start, destination, and departure time. The planner estimates your route, calculates when you reach each checkpoint,
+        and pulls the weather expected at that moment.
+      </p>
+    </header>
+
+    <main class="layout">
+      <section class="panel panel-form">
+        <form id="trip-form" class="trip-form">
+          <label class="field">
+            <span>Starting point</span>
+            <input id="source" name="source" type="text" placeholder="Boston, MA" required>
+          </label>
+
+          <label class="field">
+            <span>Destination</span>
+            <input id="destination" name="destination" type="text" placeholder="Portland, ME" required>
+          </label>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Departure time</span>
+              <input id="departureTime" name="departureTime" type="datetime-local" required>
+            </label>
+
+            <label class="field">
+              <span>Travel mode</span>
+              <select id="profile" name="profile">
+                <option value="driving">Driving</option>
+                <option value="cycling">Cycling</option>
+                <option value="walking">Walking</option>
+              </select>
+            </label>
+          </div>
+
+          <div class="field-row">
+            <label class="field">
+              <span>Checkpoint spacing</span>
+              <select id="spacing" name="spacing">
+                <option value="30">Every 30 minutes</option>
+                <option value="60" selected>Every hour</option>
+                <option value="90">Every 90 minutes</option>
+                <option value="120">Every 2 hours</option>
+              </select>
+            </label>
+
+            <label class="field">
+              <span>Forecast detail</span>
+              <select id="density" name="density">
+                <option value="balanced" selected>Balanced</option>
+                <option value="compact">Compact</option>
+                <option value="detailed">Detailed</option>
+              </select>
+            </label>
+          </div>
+
+          <button id="submitButton" class="submit-button" type="submit">Plan trip weather</button>
+        </form>
+
+        <div class="hint-card">
+          <h2>What this uses</h2>
+          <p>Routes come from OSRM. Forecasts and geocoding come from Open-Meteo. Forecast accuracy depends on the APIs and is limited to their available horizon.</p>
+        </div>
+      </section>
+
+      <section class="panel panel-results">
+        <div class="results-header">
+          <div>
+            <p class="eyebrow">Forecast Timeline</p>
+            <h2 id="resultsTitle">Plan a route to see your weather checkpoints.</h2>
+          </div>
+          <div id="statusBadge" class="status-badge idle">Ready</div>
+        </div>
+
+        <div id="summary" class="summary empty">
+          <p>Your trip summary will appear here.</p>
+        </div>
+
+        <div id="timeline" class="timeline empty">
+          <div class="empty-state">
+            <h3>No route yet</h3>
+            <p>Start with a source, destination, and departure time to build a weather-aware travel plan.</p>
+          </div>
+        </div>
+
+        <div id="notice" class="notice" aria-live="polite"></div>
+      </section>
+    </main>
+  </div>
+
+  <template id="timeline-card-template">
+    <article class="timeline-card">
+      <div class="timeline-marker">
+        <span></span>
+      </div>
+      <div class="timeline-content">
+        <div class="timeline-topline">
+          <p class="checkpoint-label"></p>
+          <p class="eta-text"></p>
+        </div>
+        <div class="timeline-weather">
+          <p class="weather-main"></p>
+          <p class="weather-meta"></p>
+        </div>
+      </div>
+    </article>
+  </template>
+
+  <script src="./app.js" type="module"></script>
+</body>
+</html>
