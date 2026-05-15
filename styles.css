@@ -53,6 +53,12 @@ body::before {
   padding: 40px 0 56px;
 }
 
+.topbar {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 18px;
+}
+
 .hero {
   display: flex;
   justify-content: space-between;
@@ -63,6 +69,48 @@ body::before {
 
 .hero-copy-block {
   max-width: 820px;
+}
+
+html[dir="rtl"] body {
+  font-family: "Noto Sans Hebrew", "Space Grotesk", sans-serif;
+  direction: rtl;
+}
+
+html[dir="rtl"] .hero h1,
+html[dir="rtl"] .panel-form h2,
+html[dir="rtl"] .panel-results h2,
+html[dir="rtl"] .subpanel h3,
+html[dir="rtl"] .map-empty h3,
+html[dir="rtl"] .map-sidecard h3,
+html[dir="rtl"] .empty-state h3 {
+  font-family: "Noto Serif Hebrew", "Instrument Serif", serif;
+}
+
+html[dir="rtl"] .topbar {
+  justify-content: flex-start;
+}
+
+html[dir="rtl"] .hero-callout {
+  justify-content: flex-start;
+}
+
+html[dir="rtl"] .map-toolbar {
+  left: auto;
+  right: 14px;
+}
+
+html[dir="rtl"] .map-legend {
+  right: auto;
+  left: 14px;
+  justify-content: flex-start;
+}
+
+html[dir="rtl"] .suggestion-item,
+html[dir="rtl"] .recent-trip,
+html[dir="rtl"] .timeline-card,
+html[dir="rtl"] .direction-step,
+html[dir="rtl"] .popup-card {
+  text-align: right;
 }
 
 .eyebrow {

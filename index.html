@@ -6,7 +6,7 @@
   <title>Road Weather Planner</title>
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=Instrument+Serif:ital@0;1&family=Noto+Sans+Hebrew:wght@400;500;700&family=Noto+Serif+Hebrew:wght@400;700&display=swap" rel="stylesheet">
   <link
     rel="stylesheet"
     href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"
@@ -17,6 +17,9 @@
 </head>
 <body>
   <div class="page-shell">
+    <div class="topbar">
+      <button id="languageToggle" class="chip-button" type="button">עברית</button>
+    </div>
     <header class="hero">
       <div class="hero-copy-block">
         <p class="eyebrow">Route Weather Studio</p>

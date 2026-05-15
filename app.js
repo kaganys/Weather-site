@@ -37,6 +37,7 @@ const mapLegend = document.getElementById("mapLegend");
 const timelineCardTemplate = document.getElementById("timeline-card-template");
 const directionStepTemplate = document.getElementById("direction-step-template");
 const quickTimeButtons = Array.from(document.querySelectorAll(".quick-time"));
+const languageToggleButton = document.getElementById("languageToggle");
 
 const WEATHER_CODES = {
   0: "Clear sky",
@@ -69,12 +70,416 @@ const WEATHER_CODES = {
   99: "Storm with heavy hail"
 };
 
+const WEATHER_CODES_HE = {
+  0: "שמיים בהירים",
+  1: "בהיר ברובו",
+  2: "מעונן חלקית",
+  3: "מעונן",
+  45: "ערפל",
+  48: "ערפל קופא",
+  51: "טפטוף קל",
+  53: "טפטוף",
+  55: "טפטוף כבד",
+  56: "טפטוף קופא קל",
+  57: "טפטוף קופא",
+  61: "גשם קל",
+  63: "גשם",
+  65: "גשם כבד",
+  66: "גשם קופא קל",
+  67: "גשם קופא",
+  71: "שלג קל",
+  73: "שלג",
+  75: "שלג כבד",
+  77: "גרגרי שלג",
+  80: "ממטרי גשם",
+  81: "ממטרים כבדים",
+  82: "ממטרים חזקים",
+  85: "ממטרי שלג",
+  86: "ממטרי שלג כבדים",
+  95: "סופת רעמים",
+  96: "סופה עם ברד קל",
+  99: "סופה עם ברד כבד"
+};
+
 const CHECKPOINT_INTERVAL_MINUTES = 30;
 const FORECAST_HOURS_LIMIT = 16 * 24;
 const AUTOCOMPLETE_MINIMUM = 3;
 const STORAGE_KEYS = {
   recentTrips: "routeWeatherRecentTripsV2",
   preferences: "routeWeatherPreferencesV2"
+};
+
+const I18N = {
+  en: {
+    pageTitle: "Road Weather Planner",
+    languageButton: "עברית",
+    heroEyebrow: "Route Weather Studio",
+    heroTitle: "Better route planning, cleaner directions, and weather every 30 minutes.",
+    heroCopy: "Type addresses with live suggestions, set when you leave, and get a map-first trip plan that follows the forecast city by city as you move down the road.",
+    heroPills: ["Live address suggestions", "Turn-by-turn directions", "30-minute weather checkpoints"],
+    tripSetupEyebrow: "Trip Setup",
+    tripSetupTitle: "Build your route",
+    tripSetupCopy: "Search real places, adjust departure time, and choose whether you want the directions panel shown.",
+    sourceLabel: "Starting address",
+    destinationLabel: "Destination address",
+    useMyLocation: "Use my location",
+    live: "Live",
+    swapRoute: "Swap route",
+    sourcePlaceholder: "350 5th Ave, New York, NY",
+    destinationPlaceholder: "1 Washington Sq, San Jose, CA",
+    departureTime: "Departure time",
+    travelMode: "Travel mode",
+    units: "Units",
+    tripNotes: "Trip notes",
+    tripNotesPlaceholder: "Shabbos stop, food, pickup, gear, or route notes",
+    unitsImperial: "Imperial",
+    unitsMetric: "Metric",
+    quickTimes: ["Leave in 30 min", "Leave in 2 hr", "Tomorrow 8 AM"],
+    quickDepartureChoices: "Quick departure choices",
+    showDirectionsTitle: "Show actual directions",
+    showDirectionsCopy: "Keep a dedicated turn-by-turn directions panel beside the forecast timeline.",
+    plannerNoteHtml: "<strong>Sampling:</strong> weather checkpoints are placed automatically every 30 minutes along the route.",
+    buildTripForecast: "Build trip forecast",
+    savedEyebrow: "Saved",
+    recentTrips: "Recent trips",
+    clear: "Clear",
+    recentTripsEmpty: "Recent trips you plan will show up here.",
+    tripBoardEyebrow: "Trip Board",
+    defaultResultsTitle: "Plan a route to light up the map.",
+    ready: "Ready",
+    summaryEmpty: "Your route summary will appear here.",
+    copySummary: "Copy summary",
+    copyShareLink: "Copy share link",
+    exportTrip: "Export trip",
+    printPlan: "Print plan",
+    recenter: "Recenter",
+    hideCheckpoints: "Hide checkpoints",
+    showCheckpoints: "Show checkpoints",
+    hideShuls: "Hide Orthodox shuls",
+    showShuls: "Show Orthodox shuls",
+    fullscreenMap: "Fullscreen map",
+    openGoDaven: "Open GoDaven",
+    jumpToDirections: "Jump to directions",
+    mapReadyTitle: "Map ready for your route",
+    mapReadyCopy: "Once you choose addresses, the trip path, weather cities, and direction focus points will show here.",
+    mapLegendEmpty: "Route details and forecast highlights will appear here.",
+    atGlanceEyebrow: "At A Glance",
+    atGlanceTitle: "What this trip board shows",
+    featureList: [
+      "Address suggestions while you type.",
+      "Weather stops every 30 minutes.",
+      "Clickable forecast cities on the route.",
+      "Orthodox synagogue icons for the visible map area.",
+      "Turn-by-turn directions tied to the same route."
+    ],
+    forecastEyebrow: "Forecast Route",
+    weatherCityByCity: "Weather city by city",
+    every30: "Every 30 minutes",
+    noRouteTitle: "No route yet",
+    noRouteCopy: "Start with two addresses and a departure time to build your live route forecast.",
+    directionsEyebrow: "Directions",
+    actualDirections: "Actual turn-by-turn steps",
+    tapStepToFocus: "Tap a step to focus it on the map",
+    directionsOverviewEmpty: "Build a route to see the full directions overview.",
+    filterDirectionSteps: "Filter direction steps",
+    majorStepsOnly: "Major steps only",
+    directionsWaitingTitle: "Directions waiting",
+    directionsWaitingCopy: "Build a route to see the step list here.",
+    openGoogleMaps: "Open in Google Maps",
+    openOpenStreetMap: "Open in OpenStreetMap",
+    openWaze: "Open in Waze",
+    loading: "Loading",
+    issue: "Issue",
+    searchingAddresses: "Searching addresses...",
+    suggestionLookupFailed: "Suggestion lookup failed.",
+    noMatchingAddresses: "No matching addresses yet.",
+    departureFutureError: "Please choose a departure time in the future.",
+    validDepartureError: "Please choose a valid departure time.",
+    bothAddressesError: "Please provide both a starting address and a destination.",
+    addressLookupError: "Could not look up that address.",
+    noAddressMatch: (query) => `No address match found for "${query}".`,
+    routeCalcError: "Could not calculate the route between those places.",
+    routeBuildError: "The route service could not build a path for that trip.",
+    forecastWindowError: "This trip stretches past the forecast window. Try a closer departure time or a shorter route.",
+    weatherLoadError: "Weather data could not be loaded for one of the route checkpoints.",
+    noHourlyForecastError: "No matching hourly forecast was available for part of this trip.",
+    unknownConditions: "Unknown conditions",
+    routeBuiltNotice: "Route built. Click any checkpoint or direction step to focus it on the map.",
+    wetStretchNotice: (city, time, precip) => `Watch the stretch near ${city} around ${time}. It currently shows about a ${precip}% precipitation chance.`,
+    useLocationUnsupported: "Your browser does not support location access.",
+    usingLocationNotice: (name) => `Using your current location: ${name}.`,
+    locationAccessError: "Could not access your location. Check browser permission and try again.",
+    noShulsFoundNotice: "No Orthodox shuls were found in this map view from OpenStreetMap tags. Try zooming in further or use the GoDaven button for a broader database.",
+    loadedRecentTrip: (index) => `Loaded recent trip ${index}.`,
+    recentTripsCleared: "Recent trips cleared.",
+    summaryCopied: "Trip summary copied.",
+    summaryCopyFailed: "Could not copy automatically. Try export instead.",
+    shareCopied: "Share link copied.",
+    shareCopyFailed: "Could not copy automatically. You can still export the trip.",
+    exportDone: "Trip itinerary exported.",
+    nothingToCopy: "Plan a route first so there is something to copy.",
+    nothingToShare: "Plan a route first so there is a share link.",
+    nothingToExport: "Plan a route first so there is something to export.",
+    nothingToPrint: "Plan a route first so there is something to print.",
+    noDirectionsTitle: "No directions",
+    noDirectionsCopy: "The routing service did not return turn-by-turn steps for this route.",
+    noMatchingStepsTitle: "No matching steps",
+    noMatchingStepsCopy: "Try clearing the filter or turning off major-steps-only.",
+    routeFrom: "From",
+    routeTo: "To",
+    routeOverview: "Route",
+    estimatedTrip: "Estimated trip",
+    distance: "Distance",
+    arrival: "Arrival",
+    weatherStops: "Weather stops",
+    directionsCount: "Directions",
+    stepsCount: (count) => `${count} steps`,
+    coldestPoint: "Coldest point",
+    warmestPoint: "Warmest point",
+    travelModeLabel: "Travel mode",
+    sampling: "Sampling",
+    forecastSpread: "Forecast spread",
+    averageSpeed: "Average speed",
+    weatherRisk: "Weather risk",
+    sunriseAtStart: "Sunrise at start",
+    sunsetAtArrival: "Sunset at arrival",
+    arrivalLight: "Arrival light",
+    notes: "Notes",
+    summarySubcopy: "Weather is sampled every 30 minutes along the route, then labeled with nearby cities whenever possible.",
+    checkpointsPlaced: (count) => `${count} weather checkpoints placed across the route.`,
+    coldestNear: (temperature, city) => `${temperature} near ${city}`,
+    warmestNear: (temperature, city) => `${temperature} near ${city}`,
+    rangeText: (start, end) => `${start} to ${end}`,
+    elapsedOffset: (minutes) => `+${minutes} min`,
+    precipShort: "precip",
+    windWord: "wind",
+    depart: (name) => `Depart ${name}`,
+    arrive: (name) => `Arrive ${name}`,
+    near: (name) => `Near ${name}`,
+    minIntoTrip: (minutes) => `${minutes} min into trip`,
+    stopAtMin: (minutes) => `Stop at ${minutes} min`,
+    routeSummaryLine: (source, departure, destination) => `Leaving <strong>${source}</strong> at <strong>${departure}</strong> and heading to <strong>${destination}</strong>.`,
+    routeRiskCalm: "Mostly calm route",
+    routeRiskSome: "Some weather risk",
+    routeRiskRough: "Rough stretch likely",
+    beforeSunrise: "Before sunrise",
+    afterSunset: "After sunset",
+    nearSunset: "Near sunset",
+    daylight: "Daylight",
+    orthodoxShulsInView: (count) => `${count} Orthodox shuls in view`,
+    noShulsInView: "No Orthodox shuls found in current view",
+    shulLayerHidden: "Orthodox shul layer hidden",
+    wettestNear: (city) => `Wettest near ${city}`,
+    currentLocationLookupError: "Could not look up your current location.",
+    sunriseSunsetError: "Could not load sunrise and sunset times.",
+    orthodoxSynagogue: "Orthodox synagogue",
+    denomination: "Denomination",
+    routeText: (duration, distance, steps) => `${duration} • ${distance} • ${steps} steps`,
+    savedTripLine: (date, profile) => `${date} • ${profile}`,
+    tripTextHeader: (source, destination) => `Trip: ${source} -> ${destination}`,
+    departureText: "Departure",
+    arrivalText: "Arrival",
+    avgSpeedText: "Average speed",
+    weatherRiskText: "Weather risk",
+    sunriseText: "Sunrise at start",
+    sunsetText: "Sunset at destination",
+    weatherCheckpointsText: "Weather checkpoints",
+    weatherCheckpointsSection: "Weather checkpoints:",
+    directionsSectionText: "Directions:",
+    useMyLocationBusy: "Locating...",
+    profileDriving: "Driving",
+    profileCycling: "Cycling",
+    profileWalking: "Walking",
+    statusNoRoute: "No route yet",
+    buildTripForecastBusy: "Building route...",
+    routeBuiltStatus: "Route built",
+    roadAhead: "the road ahead"
+  },
+  he: {
+    pageTitle: "מתכנן מזג אוויר לדרך",
+    languageButton: "English",
+    heroEyebrow: "סטודיו מזג אוויר לדרך",
+    heroTitle: "תכנון דרך טוב יותר, הוראות נקיות יותר, ומזג אוויר כל 30 דקות.",
+    heroCopy: "הקלד כתובות עם הצעות חיות, קבע זמן יציאה, וקבל תוכנית נסיעה ממוקדת מפה שעוקבת אחרי התחזית עיר אחר עיר לאורך הדרך.",
+    heroPills: ["הצעות כתובת חיות", "הוראות פנייה אחר פנייה", "נקודות מזג אוויר כל 30 דקות"],
+    tripSetupEyebrow: "הגדרת נסיעה",
+    tripSetupTitle: "בנה את המסלול שלך",
+    tripSetupCopy: "חפש מקומות אמיתיים, עדכן את זמן היציאה, ובחר אם להציג את חלונית ההוראות.",
+    sourceLabel: "כתובת מוצא",
+    destinationLabel: "כתובת יעד",
+    useMyLocation: "השתמש במיקום שלי",
+    live: "חי",
+    swapRoute: "החלף מסלול",
+    sourcePlaceholder: "350 5th Ave, New York, NY",
+    destinationPlaceholder: "1 Washington Sq, San Jose, CA",
+    departureTime: "זמן יציאה",
+    travelMode: "אמצעי נסיעה",
+    units: "יחידות",
+    tripNotes: "הערות לנסיעה",
+    tripNotesPlaceholder: "שבת, אוכל, איסוף, ציוד או הערות למסלול",
+    unitsImperial: "אימפריאלי",
+    unitsMetric: "מטרי",
+    quickTimes: ["יוצא בעוד 30 דק׳", "יוצא בעוד שעתיים", "מחר ב-8:00"],
+    quickDepartureChoices: "בחירות מהירות ליציאה",
+    showDirectionsTitle: "הצג הוראות מלאות",
+    showDirectionsCopy: "השאר חלונית ייעודית של הוראות פנייה אחר פנייה לצד ציר מזג האוויר.",
+    plannerNoteHtml: "<strong>דגימה:</strong> נקודות מזג האוויר ממוקמות אוטומטית כל 30 דקות לאורך המסלול.",
+    buildTripForecast: "בנה תחזית לנסיעה",
+    savedEyebrow: "שמור",
+    recentTrips: "נסיעות אחרונות",
+    clear: "נקה",
+    recentTripsEmpty: "נסיעות שתתכנן יופיעו כאן.",
+    tripBoardEyebrow: "לוח נסיעה",
+    defaultResultsTitle: "תכנן מסלול כדי להאיר את המפה.",
+    ready: "מוכן",
+    summaryEmpty: "סיכום המסלול שלך יופיע כאן.",
+    copySummary: "העתק סיכום",
+    copyShareLink: "העתק קישור שיתוף",
+    exportTrip: "ייצא נסיעה",
+    printPlan: "הדפס תוכנית",
+    recenter: "מרכז מחדש",
+    hideCheckpoints: "הסתר תחנות",
+    showCheckpoints: "הצג תחנות",
+    hideShuls: "הסתר בתי כנסת אורתודוקסיים",
+    showShuls: "הצג בתי כנסת אורתודוקסיים",
+    fullscreenMap: "מפה במסך מלא",
+    openGoDaven: "פתח GoDaven",
+    jumpToDirections: "עבור להוראות",
+    mapReadyTitle: "המפה מוכנה למסלול שלך",
+    mapReadyCopy: "לאחר שתבחר כתובות, המסלול, ערי מזג האוויר ונקודות ההוראות יופיעו כאן.",
+    mapLegendEmpty: "פרטי המסלול והדגשות התחזית יופיעו כאן.",
+    atGlanceEyebrow: "במבט מהיר",
+    atGlanceTitle: "מה לוח הנסיעה מציג",
+    featureList: [
+      "הצעות כתובת בזמן הקלדה.",
+      "תחנות מזג אוויר כל 30 דקות.",
+      "ערי תחזית לחיצות לאורך המסלול.",
+      "סמלי בתי כנסת אורתודוקסיים באזור המפה הנראה.",
+      "הוראות פנייה אחר פנייה המשויכות לאותו מסלול."
+    ],
+    forecastEyebrow: "תחזית למסלול",
+    weatherCityByCity: "מזג האוויר עיר אחר עיר",
+    every30: "כל 30 דקות",
+    noRouteTitle: "עדיין אין מסלול",
+    noRouteCopy: "התחל בשתי כתובות ובזמן יציאה כדי לבנות תחזית חיה למסלול שלך.",
+    directionsEyebrow: "הוראות",
+    actualDirections: "הוראות פנייה אחר פנייה",
+    tapStepToFocus: "לחץ על שלב כדי למקד אותו במפה",
+    directionsOverviewEmpty: "בנה מסלול כדי לראות כאן את סיכום ההוראות המלא.",
+    filterDirectionSteps: "סנן שלבי הוראות",
+    majorStepsOnly: "רק שלבים מרכזיים",
+    directionsWaitingTitle: "הוראות ממתינות",
+    directionsWaitingCopy: "בנה מסלול כדי לראות כאן את רשימת הצעדים.",
+    openGoogleMaps: "פתח ב-Google Maps",
+    openOpenStreetMap: "פתח ב-OpenStreetMap",
+    openWaze: "פתח ב-Waze",
+    loading: "טוען",
+    issue: "בעיה",
+    searchingAddresses: "מחפש כתובות...",
+    suggestionLookupFailed: "חיפוש ההצעות נכשל.",
+    noMatchingAddresses: "עדיין אין כתובות תואמות.",
+    departureFutureError: "אנא בחר זמן יציאה בעתיד.",
+    validDepartureError: "אנא בחר זמן יציאה תקין.",
+    bothAddressesError: "אנא ספק גם כתובת מוצא וגם יעד.",
+    addressLookupError: "לא ניתן היה למצוא את הכתובת הזו.",
+    noAddressMatch: (query) => `לא נמצאה כתובת תואמת עבור "${query}".`,
+    routeCalcError: "לא ניתן היה לחשב מסלול בין המקומות האלה.",
+    routeBuildError: "שירות המסלולים לא הצליח לבנות נתיב לנסיעה הזו.",
+    forecastWindowError: "הנסיעה הזו חורגת מטווח התחזית. נסה זמן יציאה קרוב יותר או מסלול קצר יותר.",
+    weatherLoadError: "לא ניתן היה לטעון נתוני מזג אוויר עבור אחת מנקודות המסלול.",
+    noHourlyForecastError: "לא הייתה תחזית שעתית תואמת לחלק מהנסיעה.",
+    unknownConditions: "תנאים לא ידועים",
+    routeBuiltNotice: "המסלול נבנה. לחץ על כל תחנה או שלב הוראות כדי למקד אותו במפה.",
+    wetStretchNotice: (city, time, precip) => `שים לב לקטע ליד ${city} סביב ${time}. כרגע יש שם בערך ${precip}% סיכוי למשקעים.`,
+    useLocationUnsupported: "הדפדפן שלך לא תומך בגישה למיקום.",
+    usingLocationNotice: (name) => `משתמש במיקום הנוכחי שלך: ${name}.`,
+    locationAccessError: "לא ניתן היה לגשת למיקום שלך. בדוק הרשאות דפדפן ונסה שוב.",
+    noShulsFoundNotice: "לא נמצאו בתי כנסת אורתודוקסיים בתצוגת המפה הזו מתוך תגיות OpenStreetMap. נסה להתקרב יותר או השתמש בכפתור GoDaven למסד נתונים רחב יותר.",
+    loadedRecentTrip: (index) => `נטענה נסיעה אחרונה מספר ${index}.`,
+    recentTripsCleared: "הנסיעות האחרונות נוקו.",
+    summaryCopied: "סיכום הנסיעה הועתק.",
+    summaryCopyFailed: "לא ניתן היה להעתיק אוטומטית. נסה לייצא במקום.",
+    shareCopied: "קישור השיתוף הועתק.",
+    shareCopyFailed: "לא ניתן היה להעתיק אוטומטית. עדיין אפשר לייצא את הנסיעה.",
+    exportDone: "מסלול הנסיעה יוצא.",
+    nothingToCopy: "תכנן קודם מסלול כדי שיהיה מה להעתיק.",
+    nothingToShare: "תכנן קודם מסלול כדי שיהיה קישור שיתוף.",
+    nothingToExport: "תכנן קודם מסלול כדי שיהיה מה לייצא.",
+    nothingToPrint: "תכנן קודם מסלול כדי שיהיה מה להדפיס.",
+    noDirectionsTitle: "אין הוראות",
+    noDirectionsCopy: "שירות המסלולים לא החזיר הוראות פנייה אחר פנייה למסלול הזה.",
+    noMatchingStepsTitle: "אין שלבים תואמים",
+    noMatchingStepsCopy: "נסה לנקות את המסנן או לכבות \"רק שלבים מרכזיים\".",
+    routeFrom: "מ",
+    routeTo: "אל",
+    routeOverview: "מסלול",
+    estimatedTrip: "משך משוער",
+    distance: "מרחק",
+    arrival: "הגעה",
+    weatherStops: "תחנות מזג אוויר",
+    directionsCount: "הוראות",
+    stepsCount: (count) => `${count} שלבים`,
+    coldestPoint: "הנקודה הקרה ביותר",
+    warmestPoint: "הנקודה החמה ביותר",
+    travelModeLabel: "אמצעי נסיעה",
+    sampling: "דגימה",
+    forecastSpread: "טווח תחזית",
+    averageSpeed: "מהירות ממוצעת",
+    weatherRisk: "סיכון מזג אוויר",
+    sunriseAtStart: "זריחה בתחילת המסלול",
+    sunsetAtArrival: "שקיעה בהגעה",
+    arrivalLight: "תאורה בהגעה",
+    notes: "הערות",
+    summarySubcopy: "מזג האוויר נדגם כל 30 דקות לאורך המסלול ואז מסומן בשמות ערים סמוכות כשאפשר.",
+    checkpointsPlaced: (count) => `${count} נקודות מזג אוויר הוצבו לאורך המסלול.`,
+    coldestNear: (temperature, city) => `${temperature} ליד ${city}`,
+    warmestNear: (temperature, city) => `${temperature} ליד ${city}`,
+    rangeText: (start, end) => `${start} עד ${end}`,
+    elapsedOffset: (minutes) => `+${minutes} דק׳`,
+    precipShort: "משקעים",
+    windWord: "רוח",
+    depart: (name) => `יציאה מ${name}`,
+    arrive: (name) => `הגעה ל${name}`,
+    near: (name) => `ליד ${name}`,
+    minIntoTrip: (minutes) => `${minutes} דקות מתחילת הנסיעה`,
+    stopAtMin: (minutes) => `עצירה אחרי ${minutes} דקות`,
+    routeSummaryLine: (source, departure, destination) => `יוצאים מ<strong>${source}</strong> בשעה <strong>${departure}</strong> ונוסעים אל <strong>${destination}</strong>.`,
+    routeRiskCalm: "מסלול רגוע ברובו",
+    routeRiskSome: "יש מעט סיכון מזג אוויר",
+    routeRiskRough: "צפוי קטע מאתגר",
+    beforeSunrise: "לפני הזריחה",
+    afterSunset: "אחרי השקיעה",
+    nearSunset: "קרוב לשקיעה",
+    daylight: "אור יום",
+    orthodoxShulsInView: (count) => `${count} בתי כנסת אורתודוקסיים בתצוגה`,
+    noShulsInView: "לא נמצאו בתי כנסת אורתודוקסיים בתצוגה הנוכחית",
+    shulLayerHidden: "שכבת בתי הכנסת מוסתרת",
+    wettestNear: (city) => `הכי רטוב ליד ${city}`,
+    currentLocationLookupError: "לא ניתן היה לזהות את המיקום הנוכחי שלך.",
+    sunriseSunsetError: "לא ניתן היה לטעון זמני זריחה ושקיעה.",
+    orthodoxSynagogue: "בית כנסת אורתודוקסי",
+    denomination: "נוסח",
+    routeText: (duration, distance, steps) => `${duration} • ${distance} • ${steps} שלבים`,
+    savedTripLine: (date, profile) => `${date} • ${profile}`,
+    tripTextHeader: (source, destination) => `נסיעה: ${source} -> ${destination}`,
+    departureText: "יציאה",
+    arrivalText: "הגעה",
+    avgSpeedText: "מהירות ממוצעת",
+    weatherRiskText: "סיכון מזג אוויר",
+    sunriseText: "זריחה בתחילה",
+    sunsetText: "שקיעה ביעד",
+    weatherCheckpointsText: "נקודות מזג אוויר",
+    weatherCheckpointsSection: "נקודות מזג אוויר:",
+    directionsSectionText: "הוראות:",
+    useMyLocationBusy: "מאתר...",
+    profileDriving: "נהיגה",
+    profileCycling: "אופניים",
+    profileWalking: "הליכה",
+    statusNoRoute: "עדיין אין מסלול",
+    buildTripForecastBusy: "בונה מסלול...",
+    routeBuiltStatus: "המסלול נבנה",
+    roadAhead: "הכביש שלפנים"
+  }
 };
 
 const state = {
@@ -109,6 +514,7 @@ const state = {
   synagogueMarkersCount: 0,
   recentTrips: [],
   preferences: {
+    language: "en",
     units: "imperial",
     directionFilter: "",
     majorStepsOnly: false
@@ -122,6 +528,7 @@ initialize();
 function initialize() {
   loadPreferences();
   applyPreferencesToInputs();
+  applyLanguage();
   loadRecentTrips();
   renderRecentTrips();
   departureTimeInput.value = toLocalInputValue(new Date(Date.now() + 30 * 60 * 1000));
@@ -133,6 +540,7 @@ function initialize() {
   showDirectionsInput.addEventListener("change", updateDirectionsVisibility);
   useMyLocationButton.addEventListener("click", handleUseMyLocation);
   unitsInput.addEventListener("change", handleUnitsChange);
+  languageToggleButton.addEventListener("click", handleLanguageToggle);
   swapTripButton.addEventListener("click", handleSwapTrip);
   recenterMapButton.addEventListener("click", recenterMapToRoute);
   toggleMarkersButton.addEventListener("click", handleToggleMarkers);
@@ -157,12 +565,19 @@ function initialize() {
 }
 
 function loadPreferences() {
+  const url = new URL(window.location.href);
+  const urlLanguage = url.searchParams.get("lang") === "he" || window.location.pathname.replace(/\/+$/, "").endsWith("/he")
+    ? "he"
+    : null;
+
   try {
     const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.preferences) || "{}");
+    state.preferences.language = urlLanguage || (saved.language === "he" ? "he" : "en");
     state.preferences.units = saved.units === "metric" ? "metric" : "imperial";
     state.preferences.directionFilter = typeof saved.directionFilter === "string" ? saved.directionFilter : "";
     state.preferences.majorStepsOnly = Boolean(saved.majorStepsOnly);
   } catch {
+    state.preferences.language = urlLanguage || "en";
     state.preferences.units = "imperial";
     state.preferences.directionFilter = "";
     state.preferences.majorStepsOnly = false;
@@ -177,6 +592,156 @@ function applyPreferencesToInputs() {
   unitsInput.value = state.preferences.units;
   directionFilterInput.value = state.preferences.directionFilter;
   majorStepsOnlyInput.checked = state.preferences.majorStepsOnly;
+}
+
+function t(key, ...args) {
+  const dictionary = I18N[state.preferences.language] || I18N.en;
+  const value = dictionary[key] ?? I18N.en[key];
+  return typeof value === "function" ? value(...args) : value;
+}
+
+function applyLanguage() {
+  const isHebrew = state.preferences.language === "he";
+  document.documentElement.lang = isHebrew ? "he" : "en";
+  document.documentElement.dir = isHebrew ? "rtl" : "ltr";
+  document.title = t("pageTitle");
+  languageToggleButton.textContent = t("languageButton");
+
+  const heroEyebrows = document.querySelectorAll(".eyebrow");
+  heroEyebrows[0].textContent = t("heroEyebrow");
+  document.querySelector(".hero h1").textContent = t("heroTitle");
+  document.querySelector(".hero-copy").textContent = t("heroCopy");
+  document.querySelectorAll(".hero-pill").forEach((pill, index) => {
+    pill.textContent = t("heroPills")[index];
+  });
+
+  heroEyebrows[1].textContent = t("tripSetupEyebrow");
+  document.querySelector(".panel-intro h2").textContent = t("tripSetupTitle");
+  document.querySelector(".panel-intro p:last-child").textContent = t("tripSetupCopy");
+
+  document.querySelector('label[for="source"]').textContent = t("sourceLabel");
+  document.querySelector('label[for="destination"]').textContent = t("destinationLabel");
+  document.querySelector('label[for="departureTime"]').textContent = t("departureTime");
+  document.querySelector('label[for="profile"]').textContent = t("travelMode");
+  document.querySelector('label[for="units"]').textContent = t("units");
+  document.querySelector('label[for="tripNotes"]').textContent = t("tripNotes");
+  document.querySelector('#profile option[value="driving"]').textContent = t("profileDriving");
+  document.querySelector('#profile option[value="cycling"]').textContent = t("profileCycling");
+  document.querySelector('#profile option[value="walking"]').textContent = t("profileWalking");
+  document.querySelector('#units option[value="imperial"]').textContent = t("unitsImperial");
+  document.querySelector('#units option[value="metric"]').textContent = t("unitsMetric");
+  document.querySelector(".quick-times").setAttribute("aria-label", t("quickDepartureChoices"));
+  document.querySelectorAll(".field-tag").forEach((tag) => {
+    tag.textContent = t("live");
+  });
+  useMyLocationButton.textContent = t("useMyLocation");
+  swapTripButton.textContent = t("swapRoute");
+  swapTripButton.setAttribute("aria-label", t("swapRoute"));
+  sourceInput.placeholder = t("sourcePlaceholder");
+  destinationInput.placeholder = t("destinationPlaceholder");
+  tripNotesInput.placeholder = t("tripNotesPlaceholder");
+  quickTimeButtons.forEach((button, index) => {
+    button.textContent = t("quickTimes")[index];
+  });
+  document.querySelector(".toggle-copy strong").textContent = t("showDirectionsTitle");
+  document.querySelector(".toggle-copy small").textContent = t("showDirectionsCopy");
+  document.querySelector(".planner-note").innerHTML = t("plannerNoteHtml");
+  submitButton.textContent = submitButton.disabled ? t("buildTripForecastBusy") : t("buildTripForecast");
+
+  heroEyebrows[2].textContent = t("savedEyebrow");
+  document.querySelector(".recent-panel h3").textContent = t("recentTrips");
+  clearRecentTripsButton.textContent = t("clear");
+  if (!state.recentTrips.length) {
+    recentTrips.innerHTML = `<p>${escapeHtml(t("recentTripsEmpty"))}</p>`;
+  }
+
+  heroEyebrows[3].textContent = t("tripBoardEyebrow");
+  if (statusBadge.classList.contains("loading")) {
+    statusBadge.textContent = t("loading");
+  } else if (statusBadge.classList.contains("error")) {
+    statusBadge.textContent = t("issue");
+  } else if (statusBadge.classList.contains("success")) {
+    statusBadge.textContent = t("routeBuiltStatus");
+  } else {
+    statusBadge.textContent = t("ready");
+  }
+
+  if (!state.routeData) {
+    resultsTitle.textContent = t("defaultResultsTitle");
+  }
+  if (summary.classList.contains("empty")) {
+    summary.innerHTML = `<p>${escapeHtml(t("summaryEmpty"))}</p>`;
+  }
+  copySummaryButton.textContent = t("copySummary");
+  copyShareLinkButton.textContent = t("copyShareLink");
+  exportTripButton.textContent = t("exportTrip");
+  printTripButton.textContent = t("printPlan");
+  recenterMapButton.textContent = t("recenter");
+  toggleMarkersButton.textContent = state.checkpointMarkersVisible ? t("hideCheckpoints") : t("showCheckpoints");
+  toggleSynagoguesButton.textContent = state.synagoguesVisible ? t("hideShuls") : t("showShuls");
+  fullscreenMapButton.textContent = t("fullscreenMap");
+  document.getElementById("openGoDaven").textContent = t("openGoDaven");
+  jumpToDirectionsButton.textContent = t("jumpToDirections");
+
+  if (!state.routeData) {
+    document.querySelector("#mapEmpty h3").textContent = t("mapReadyTitle");
+    document.querySelector("#mapEmpty p").textContent = t("mapReadyCopy");
+    mapLegend.innerHTML = `<span>${escapeHtml(t("mapLegendEmpty"))}</span>`;
+  }
+
+  heroEyebrows[4].textContent = t("atGlanceEyebrow");
+  document.querySelector(".map-sidecard h3").textContent = t("atGlanceTitle");
+  document.querySelectorAll(".feature-list li").forEach((item, index) => {
+    item.textContent = t("featureList")[index];
+  });
+
+  heroEyebrows[5].textContent = t("forecastEyebrow");
+  document.querySelector(".content-grid .subpanel h3").textContent = t("weatherCityByCity");
+  document.querySelector(".content-grid .section-note").textContent = t("every30");
+  if (timeline.classList.contains("empty")) {
+    const empty = timeline.querySelector(".empty-state");
+    if (empty) {
+      empty.querySelector("h3").textContent = t("noRouteTitle");
+      empty.querySelector("p").textContent = t("noRouteCopy");
+    }
+  }
+
+  heroEyebrows[6].textContent = t("directionsEyebrow");
+  document.querySelector("#directionsSection h3").textContent = t("actualDirections");
+  document.querySelector("#directionsSection .section-note").textContent = t("tapStepToFocus");
+  if (directionsOverview.classList.contains("empty")) {
+    directionsOverview.innerHTML = `<p>${escapeHtml(t("directionsOverviewEmpty"))}</p>`;
+  }
+  directionFilterInput.placeholder = t("filterDirectionSteps");
+  document.querySelector(".mini-toggle span").textContent = t("majorStepsOnly");
+  if (directionsList.classList.contains("empty")) {
+    const empty = directionsList.querySelector(".empty-state");
+    if (empty) {
+      empty.querySelector("h3").textContent = t("directionsWaitingTitle");
+      empty.querySelector("p").textContent = t("directionsWaitingCopy");
+    }
+  }
+
+  renderRecentTrips();
+  rerenderCurrentTrip();
+}
+
+function handleLanguageToggle() {
+  state.preferences.language = state.preferences.language === "he" ? "en" : "he";
+  savePreferences();
+  updateLanguageUrl();
+  applyLanguage();
+}
+
+function updateLanguageUrl() {
+  const url = new URL(window.location.href);
+  if (state.preferences.language === "he") {
+    url.searchParams.set("lang", "he");
+  } else {
+    url.searchParams.delete("lang");
+  }
+
+  window.history.replaceState({}, "", url);
 }
 
 function loadRecentTrips() {
@@ -197,7 +762,7 @@ function renderRecentTrips() {
 
   if (!state.recentTrips.length) {
     recentTrips.classList.add("empty");
-    recentTrips.innerHTML = "<p>Recent trips you plan will show up here.</p>";
+    recentTrips.innerHTML = `<p>${escapeHtml(t("recentTripsEmpty"))}</p>`;
     return;
   }
 
@@ -208,12 +773,12 @@ function renderRecentTrips() {
     button.type = "button";
     button.className = "recent-trip";
     button.innerHTML = `
-      <strong>${escapeHtml(trip.sourceShort)} to ${escapeHtml(trip.destinationShort)}</strong>
-      <span>${escapeHtml(formatSavedTripDate(trip.departureTime))} • ${escapeHtml(capitalize(trip.profile))}</span>
+      <strong>${escapeHtml(trip.sourceShort)} → ${escapeHtml(trip.destinationShort)}</strong>
+      <span>${escapeHtml(t("savedTripLine", formatSavedTripDate(trip.departureTime), profileLabel(trip.profile)))}</span>
     `;
     button.addEventListener("click", () => {
       applySavedTrip(trip);
-      renderNotice(`Loaded recent trip ${index + 1}.`);
+      renderNotice(t("loadedRecentTrip", index + 1));
     });
     recentTrips.appendChild(button);
   });
@@ -315,7 +880,7 @@ function queueSuggestions(fieldName, query, suggestionBox, delay = 140) {
     return;
   }
 
-  renderSuggestionState(fieldName, suggestionBox, "Searching addresses...");
+  renderSuggestionState(fieldName, suggestionBox, t("searchingAddresses"));
 
   state.suggestionTimers[fieldName] = window.setTimeout(async () => {
     if (state.suggestionControllers[fieldName]) {
@@ -332,7 +897,7 @@ function queueSuggestions(fieldName, query, suggestionBox, delay = 140) {
       renderSuggestions(fieldName, suggestionBox);
     } catch (error) {
       if (error.name !== "AbortError") {
-        renderSuggestionState(fieldName, suggestionBox, "Suggestion lookup failed.");
+        renderSuggestionState(fieldName, suggestionBox, t("suggestionLookupFailed"));
       }
     }
   }, delay);
@@ -384,7 +949,7 @@ async function fetchPlaceSuggestions(query, signal) {
   });
 
   if (!response.ok) {
-    throw new Error("Suggestion lookup failed.");
+    throw new Error(t("suggestionLookupFailed"));
   }
 
   const results = await response.json();
@@ -397,7 +962,7 @@ function renderSuggestions(fieldName, suggestionBox) {
   suggestionBox.innerHTML = "";
 
   if (!suggestions.length) {
-    renderSuggestionState(fieldName, suggestionBox, "No matching addresses yet.");
+    renderSuggestionState(fieldName, suggestionBox, t("noMatchingAddresses"));
     return;
   }
 
@@ -476,12 +1041,12 @@ async function handleSubmit(event) {
   const notes = tripNotesInput.value.trim();
 
   if (Number.isNaN(departureDate.getTime())) {
-    renderError("Please choose a valid departure time.");
+    renderError(t("validDepartureError"));
     return;
   }
 
   if (departureDate.getTime() < Date.now() - 5 * 60 * 1000) {
-    renderError("Please choose a departure time in the future.");
+    renderError(t("departureFutureError"));
     return;
   }
 
@@ -499,7 +1064,7 @@ async function handleSubmit(event) {
     const forecastHorizonHours = (checkpoints.at(-1).eta.getTime() - Date.now()) / (1000 * 60 * 60);
 
     if (forecastHorizonHours > FORECAST_HOURS_LIMIT) {
-      throw new Error("This trip stretches past the forecast window. Try a closer departure time or a shorter route.");
+      throw new Error(t("forecastWindowError"));
     }
 
     const checkpointEntries = await Promise.all(
@@ -531,9 +1096,9 @@ async function handleSubmit(event) {
     renderTrip(tripData);
     saveTripToRecents(tripData);
     updateUrlFromTrip(tripData);
-    setStatus("success", "Ready");
+    setStatus("success", t("routeBuiltStatus"));
   } catch (error) {
-    renderError(error.message || "Something went wrong while building the route.");
+    renderError(error.message || t("routeBuildError"));
   } finally {
     setLoadingState(false);
   }
@@ -541,7 +1106,7 @@ async function handleSubmit(event) {
 
 async function resolvePlace(fieldName, value) {
   if (!value) {
-    throw new Error("Please provide both a starting address and a destination.");
+    throw new Error(t("bothAddressesError"));
   }
 
   const selected = state.selectedPlaces[fieldName];
@@ -566,14 +1131,14 @@ async function geocodeLocation(query) {
   });
 
   if (!response.ok) {
-    throw new Error("Could not look up that address.");
+    throw new Error(t("addressLookupError"));
   }
 
   const results = await response.json();
   const place = results[0];
 
   if (!place) {
-    throw new Error(`No address match found for "${query}".`);
+    throw new Error(t("noAddressMatch", query));
   }
 
   return normalizeNominatimPlace(place);
@@ -594,7 +1159,7 @@ async function reverseGeocodeFullPlace(latitude, longitude) {
   });
 
   if (!response.ok) {
-    throw new Error("Could not look up your current location.");
+    throw new Error(t("currentLocationLookupError"));
   }
 
   const place = await response.json();
@@ -612,7 +1177,7 @@ async function loadSunData(place, date) {
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error("Could not load sunrise and sunset times.");
+    throw new Error(t("sunriseSunsetError"));
   }
 
   const data = await response.json();
@@ -672,14 +1237,14 @@ async function getRoute(source, destination, profile) {
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error("Could not calculate the route between those places.");
+    throw new Error(t("routeCalcError"));
   }
 
   const data = await response.json();
   const route = data.routes?.[0];
 
   if (!route?.geometry?.coordinates?.length) {
-    throw new Error("The route service could not build a path for that trip.");
+    throw new Error(t("routeBuildError"));
   }
 
   return {
@@ -696,6 +1261,12 @@ function flattenDirections(legs) {
 
     return {
       index,
+      maneuverType: step.maneuver?.type || "",
+      maneuverModifier: step.maneuver?.modifier || "",
+      name: step.name || "",
+      ref: step.ref || "",
+      destinations: step.destinations || "",
+      roadName: roadName(step),
       instruction: formatDirectionInstruction(step),
       distanceMeters: step.distance,
       durationSeconds: step.duration,
@@ -811,7 +1382,7 @@ function applyCheckpointLabels(checkpoints, sourcePlace, destinationPlace) {
     if (index === 0) {
       return {
         ...checkpoint,
-        label: `Depart ${sourcePlace.shortName}`,
+        label: t("depart", sourcePlace.shortName),
         cityName: sourcePlace.shortName
       };
     }
@@ -819,7 +1390,7 @@ function applyCheckpointLabels(checkpoints, sourcePlace, destinationPlace) {
     if (index === checkpoints.length - 1) {
       return {
         ...checkpoint,
-        label: `Arrive ${destinationPlace.shortName}`,
+        label: t("arrive", destinationPlace.shortName),
         cityName: destinationPlace.shortName
       };
     }
@@ -834,8 +1405,8 @@ function applyCheckpointLabels(checkpoints, sourcePlace, destinationPlace) {
 
     return {
       ...checkpoint,
-      label: uniqueCityName ? `Near ${cityName}` : `${checkpoint.elapsedMinutes} min into trip`,
-      cityName: cityName || `Stop at ${checkpoint.elapsedMinutes} min`
+      label: uniqueCityName ? t("near", cityName) : t("minIntoTrip", checkpoint.elapsedMinutes),
+      cityName: cityName || t("stopAtMin", checkpoint.elapsedMinutes)
     };
   });
 }
@@ -853,7 +1424,7 @@ async function loadCheckpointWeather(checkpoint) {
 
   const response = await fetch(url);
   if (!response.ok) {
-    throw new Error("Weather data could not be loaded for one of the route checkpoints.");
+    throw new Error(t("weatherLoadError"));
   }
 
   const data = await response.json();
@@ -861,14 +1432,14 @@ async function loadCheckpointWeather(checkpoint) {
   const targetIndex = findNearestHourIndex(hourly.time, checkpoint.eta);
 
   if (targetIndex === -1) {
-    throw new Error("No matching hourly forecast was available for part of this trip.");
+    throw new Error(t("noHourlyForecastError"));
   }
 
   return {
     ...checkpoint,
     forecastTime: new Date(hourly.time[targetIndex] * 1000),
     weatherCode: hourly.weather_code[targetIndex],
-    weatherLabel: WEATHER_CODES[hourly.weather_code[targetIndex]] || "Unknown conditions",
+    weatherLabel: getWeatherLabel(hourly.weather_code[targetIndex]),
     temperature: Math.round(hourly.temperature_2m[targetIndex]),
     precipitationProbability: Math.round(hourly.precipitation_probability[targetIndex]),
     windSpeed: Math.round(hourly.wind_speed_10m[targetIndex])
@@ -909,7 +1480,8 @@ function findNearestDayIndex(dayTimestamps, targetDate) {
 function renderTrip(tripData) {
   const { sourcePlace, destinationPlace, route, departureDate, checkpoints, directions } = tripData;
 
-  resultsTitle.textContent = `${sourcePlace.shortName} to ${destinationPlace.shortName}`;
+  refreshDirectionPresentation(directions);
+  resultsTitle.textContent = `${sourcePlace.shortName} → ${destinationPlace.shortName}`;
   renderSummary(tripData);
   renderTimeline(checkpoints);
   renderDirections(tripData);
@@ -924,8 +1496,8 @@ function renderTrip(tripData) {
 
   renderNotice(
     wettestCheckpoint.precipitationProbability >= 50
-      ? `Watch the stretch near ${wettestCheckpoint.cityName} around ${formatTime(wettestCheckpoint.eta)}. It currently shows about a ${wettestCheckpoint.precipitationProbability}% precipitation chance.`
-      : "Route built. Click any checkpoint or direction step to focus it on the map."
+      ? t("wetStretchNotice", wettestCheckpoint.cityName, formatTime(wettestCheckpoint.eta), wettestCheckpoint.precipitationProbability)
+      : t("routeBuiltNotice")
   );
 }
 
@@ -941,78 +1513,78 @@ function renderSummary(tripData) {
 
   summary.classList.remove("empty");
   summary.innerHTML = `
-    <p class="summary-route">Leaving <strong>${escapeHtml(sourcePlace.label)}</strong> at <strong>${formatDateTime(departureDate)}</strong> and heading to <strong>${escapeHtml(destinationPlace.label)}</strong>.</p>
-    <p class="summary-subcopy">Weather is sampled every 30 minutes along the route, then labeled with nearby cities whenever possible.</p>
+    <p class="summary-route">${t("routeSummaryLine", escapeHtml(sourcePlace.label), formatDateTime(departureDate), escapeHtml(destinationPlace.label))}</p>
+    <p class="summary-subcopy">${escapeHtml(t("summarySubcopy"))}</p>
     <div class="summary-progress">
       <div class="progress-track">
         <span class="progress-line"></span>
         ${progressMarkup}
       </div>
-      <p class="summary-subcopy">${checkpoints.length} weather checkpoints placed across the route.</p>
+      <p class="summary-subcopy">${escapeHtml(t("checkpointsPlaced", checkpoints.length))}</p>
     </div>
     <div class="summary-grid">
       <div class="summary-stat">
-        <span class="label">Estimated trip</span>
+        <span class="label">${escapeHtml(t("estimatedTrip"))}</span>
         <span class="value">${formatDuration(route.durationSeconds)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Distance</span>
+        <span class="label">${escapeHtml(t("distance"))}</span>
         <span class="value">${formatDistanceFromMeters(route.distanceMeters)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Arrival</span>
+        <span class="label">${escapeHtml(t("arrival"))}</span>
         <span class="value">${formatDateTime(arrivalDate)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Weather stops</span>
+        <span class="label">${escapeHtml(t("weatherStops"))}</span>
         <span class="value">${checkpoints.length}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Directions</span>
-        <span class="value">${directions.length} steps</span>
+        <span class="label">${escapeHtml(t("directionsCount"))}</span>
+        <span class="value">${escapeHtml(t("stepsCount", directions.length))}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Coldest point</span>
-        <span class="value">${formatTemperature(coldestPoint.temperature)} near ${escapeHtml(coldestPoint.cityName)}</span>
+        <span class="label">${escapeHtml(t("coldestPoint"))}</span>
+        <span class="value">${escapeHtml(t("coldestNear", formatTemperature(coldestPoint.temperature), coldestPoint.cityName))}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Warmest point</span>
-        <span class="value">${formatTemperature(warmestPoint.temperature)} near ${escapeHtml(warmestPoint.cityName)}</span>
+        <span class="label">${escapeHtml(t("warmestPoint"))}</span>
+        <span class="value">${escapeHtml(t("warmestNear", formatTemperature(warmestPoint.temperature), warmestPoint.cityName))}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Travel mode</span>
-        <span class="value">${capitalize(profileInput.value)}</span>
+        <span class="label">${escapeHtml(t("travelModeLabel"))}</span>
+        <span class="value">${profileLabel(profileInput.value)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Sampling</span>
-        <span class="value">Every 30 min</span>
+        <span class="label">${escapeHtml(t("sampling"))}</span>
+        <span class="value">${escapeHtml(t("every30"))}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Forecast spread</span>
-        <span class="value">${formatTemperature(coldestPoint.temperature)} to ${formatTemperature(warmestPoint.temperature)}</span>
+        <span class="label">${escapeHtml(t("forecastSpread"))}</span>
+        <span class="value">${escapeHtml(t("rangeText", formatTemperature(coldestPoint.temperature), formatTemperature(warmestPoint.temperature)))}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Average speed</span>
+        <span class="label">${escapeHtml(t("averageSpeed"))}</span>
         <span class="value">${formatSpeedFromMetersPerSecond(averageSpeed)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Weather risk</span>
+        <span class="label">${escapeHtml(t("weatherRisk"))}</span>
         <span class="value">${escapeHtml(routeRisk.label)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Sunrise at start</span>
+        <span class="label">${escapeHtml(t("sunriseAtStart"))}</span>
         <span class="value">${formatTime(sunData.departure.sunrise)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Sunset at arrival</span>
+        <span class="label">${escapeHtml(t("sunsetAtArrival"))}</span>
         <span class="value">${formatTime(sunData.arrival.sunset)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Arrival light</span>
+        <span class="label">${escapeHtml(t("arrivalLight"))}</span>
         <span class="value">${escapeHtml(arrivalLight)}</span>
       </div>
     </div>
-    ${notes ? `<p class="summary-subcopy"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ""}
+    ${notes ? `<p class="summary-subcopy"><strong>${escapeHtml(t("notes"))}:</strong> ${escapeHtml(notes)}</p>` : ""}
   `;
 }
 
@@ -1025,9 +1597,9 @@ function renderTimeline(checkpoints) {
     const card = fragment.querySelector(".timeline-card");
     card.dataset.checkpointId = checkpoint.id;
     fragment.querySelector(".checkpoint-label").textContent = checkpoint.label;
-    fragment.querySelector(".eta-text").textContent = `${formatDateTime(checkpoint.eta)} • +${checkpoint.elapsedMinutes} min`;
-    fragment.querySelector(".weather-main").textContent = `${checkpoint.weatherLabel} • ${formatTemperature(checkpoint.temperature)}`;
-    fragment.querySelector(".weather-meta").textContent = `${checkpoint.precipitationProbability}% precip • ${formatWind(checkpoint.windSpeed)}`;
+    fragment.querySelector(".eta-text").textContent = `${formatDateTime(checkpoint.eta)} • ${t("elapsedOffset", checkpoint.elapsedMinutes)}`;
+    fragment.querySelector(".weather-main").textContent = `${getWeatherLabel(checkpoint.weatherCode)} • ${formatTemperature(checkpoint.temperature)}`;
+    fragment.querySelector(".weather-meta").textContent = `${checkpoint.precipitationProbability}% ${t("precipShort")} • ${formatWind(checkpoint.windSpeed)}`;
 
     card.addEventListener("click", () => focusCheckpoint(checkpoint.id));
     timeline.appendChild(fragment);
@@ -1043,8 +1615,8 @@ function renderDirections(tripData) {
   if (!directions.length) {
     directionsList.innerHTML = `
       <div class="empty-state compact">
-        <h3>No directions</h3>
-        <p>The routing service did not return turn-by-turn steps for this route.</p>
+        <h3>${escapeHtml(t("noDirectionsTitle"))}</h3>
+        <p>${escapeHtml(t("noDirectionsCopy"))}</p>
       </div>
     `;
     return;
@@ -1055,8 +1627,8 @@ function renderDirections(tripData) {
   if (!filteredDirections.length) {
     directionsList.innerHTML = `
       <div class="empty-state compact">
-        <h3>No matching steps</h3>
-        <p>Try clearing the filter or turning off major-steps-only.</p>
+        <h3>${escapeHtml(t("noMatchingStepsTitle"))}</h3>
+        <p>${escapeHtml(t("noMatchingStepsCopy"))}</p>
       </div>
     `;
     return;
@@ -1084,13 +1656,13 @@ function renderDirectionsOverview(sourcePlace, destinationPlace, route, directio
   const wazeUrl = buildWazeUrl(destinationPlace);
 
   directionsOverview.innerHTML = `
-    <p><strong>From:</strong> ${escapeHtml(sourcePlace.label)}</p>
-    <p><strong>To:</strong> ${escapeHtml(destinationPlace.label)}</p>
-    <p><strong>Route:</strong> ${escapeHtml(formatDuration(route.durationSeconds))} • ${escapeHtml(formatDistanceFromMeters(route.distanceMeters))} • ${escapeHtml(String(directions.length))} steps</p>
+    <p><strong>${escapeHtml(t("routeFrom"))}:</strong> ${escapeHtml(sourcePlace.label)}</p>
+    <p><strong>${escapeHtml(t("routeTo"))}:</strong> ${escapeHtml(destinationPlace.label)}</p>
+    <p><strong>${escapeHtml(t("routeOverview"))}:</strong> ${escapeHtml(t("routeText", formatDuration(route.durationSeconds), formatDistanceFromMeters(route.distanceMeters), directions.length))}</p>
     <div class="directions-actions">
-      <a class="directions-link" href="${escapeHtml(googleMapsUrl)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
-      <a class="directions-link" href="${escapeHtml(openStreetMapUrl)}" target="_blank" rel="noreferrer">Open in OpenStreetMap</a>
-      <a class="directions-link" href="${escapeHtml(wazeUrl)}" target="_blank" rel="noreferrer">Open in Waze</a>
+      <a class="directions-link" href="${escapeHtml(googleMapsUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("openGoogleMaps"))}</a>
+      <a class="directions-link" href="${escapeHtml(openStreetMapUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("openOpenStreetMap"))}</a>
+      <a class="directions-link" href="${escapeHtml(wazeUrl)}" target="_blank" rel="noreferrer">${escapeHtml(t("openWaze"))}</a>
     </div>
   `;
 }
@@ -1128,17 +1700,17 @@ function renderMapLegend(route, checkpoints) {
   )[0];
   const synagogueText = state.synagoguesVisible
     ? state.synagogueMarkersCount > 0
-      ? `${state.synagogueMarkersCount} Orthodox shuls in view`
-      : "No Orthodox shuls found in current view"
-    : "Orthodox shul layer hidden";
+      ? t("orthodoxShulsInView", state.synagogueMarkersCount)
+      : t("noShulsInView")
+    : t("shulLayerHidden");
 
   mapLegend.classList.remove("empty");
   mapLegend.innerHTML = `
-    <span class="legend-chip">${capitalize(profileInput.value)}</span>
+    <span class="legend-chip">${profileLabel(profileInput.value)}</span>
     <span class="legend-chip">${formatDistanceFromMeters(route.distanceMeters)}</span>
-    <span class="legend-chip">${checkpoints.length} half-hour weather stops</span>
-    <span class="legend-chip">${synagogueText}</span>
-    <span class="legend-chip">Wettest near ${escapeHtml(wettestCheckpoint.cityName)}</span>
+    <span class="legend-chip">${escapeHtml(t("checkpointsPlaced", checkpoints.length))}</span>
+    <span class="legend-chip">${escapeHtml(synagogueText)}</span>
+    <span class="legend-chip">${escapeHtml(t("wettestNear", wettestCheckpoint.cityName))}</span>
   `;
 }
 
@@ -1207,17 +1779,17 @@ function buildCheckpointPopup(checkpoint) {
     <div class="popup-card">
       <strong>${escapeHtml(checkpoint.label)}</strong>
       <span>${escapeHtml(formatDateTime(checkpoint.eta))}</span>
-      <span>${escapeHtml(`${checkpoint.weatherLabel} • ${formatTemperature(checkpoint.temperature)}`)}</span>
-      <span>${escapeHtml(`${checkpoint.precipitationProbability}% precip • ${formatWind(checkpoint.windSpeed)}`)}</span>
+      <span>${escapeHtml(`${getWeatherLabel(checkpoint.weatherCode)} • ${formatTemperature(checkpoint.temperature)}`)}</span>
+      <span>${escapeHtml(`${checkpoint.precipitationProbability}% ${t("precipShort")} • ${formatWind(checkpoint.windSpeed)}`)}</span>
     </div>
   `;
 }
 
 function createMapIcon(type, index) {
   const label = type === "start"
-    ? "S"
+    ? state.preferences.language === "he" ? "מ" : "S"
     : type === "end"
-      ? "E"
+      ? state.preferences.language === "he" ? "י" : "E"
       : type === "synagogue"
         ? "\u2721"
         : String(index);
@@ -1273,7 +1845,7 @@ function handleToggleSynagogues() {
 }
 
 function updateMarkerLayerVisibility() {
-  toggleMarkersButton.textContent = state.checkpointMarkersVisible ? "Hide checkpoints" : "Show checkpoints";
+  toggleMarkersButton.textContent = state.checkpointMarkersVisible ? t("hideCheckpoints") : t("showCheckpoints");
 
   if (state.checkpointMarkersVisible) {
     if (!state.map.hasLayer(state.layers.checkpoints)) {
@@ -1285,7 +1857,7 @@ function updateMarkerLayerVisibility() {
 }
 
 function updateSynagogueLayerVisibility() {
-  toggleSynagoguesButton.textContent = state.synagoguesVisible ? "Hide Orthodox shuls" : "Show Orthodox shuls";
+  toggleSynagoguesButton.textContent = state.synagoguesVisible ? t("hideShuls") : t("showShuls");
 
   if (state.synagoguesVisible) {
     if (!state.map.hasLayer(state.layers.synagogues)) {
@@ -1327,6 +1899,7 @@ function handleDirectionPreferencesChange() {
   state.preferences.majorStepsOnly = majorStepsOnlyInput.checked;
   savePreferences();
   if (state.routeData) {
+    refreshDirectionPresentation(state.routeData.directions);
     renderDirections(state.routeData);
   }
 }
@@ -1349,39 +1922,39 @@ function handleFullscreenMap() {
 
 async function handleCopySummary() {
   if (!state.routeData) {
-    renderNotice("Plan a route first so there is something to copy.");
+    renderNotice(t("nothingToCopy"));
     return;
   }
 
   const copied = await copyText(buildTripSummaryText(state.routeData));
-  renderNotice(copied ? "Trip summary copied." : "Could not copy automatically. Try export instead.");
+  renderNotice(copied ? t("summaryCopied") : t("summaryCopyFailed"));
 }
 
 async function handleCopyShareLink() {
   if (!state.routeData) {
-    renderNotice("Plan a route first so there is a share link.");
+    renderNotice(t("nothingToShare"));
     return;
   }
 
   const shareUrl = getTripShareUrl(state.routeData);
   const copied = await copyText(shareUrl);
-  renderNotice(copied ? "Share link copied." : "Could not copy automatically. You can still export the trip.");
+  renderNotice(copied ? t("shareCopied") : t("shareCopyFailed"));
 }
 
 function handleExportTrip() {
   if (!state.routeData) {
-    renderNotice("Plan a route first so there is something to export.");
+    renderNotice(t("nothingToExport"));
     return;
   }
 
   const text = buildTripSummaryText(state.routeData, true);
   downloadTextFile(`trip-plan-${Date.now()}.txt`, text);
-  renderNotice("Trip itinerary exported.");
+  renderNotice(t("exportDone"));
 }
 
 function handlePrintTrip() {
   if (!state.routeData) {
-    renderNotice("Plan a route first so there is something to print.");
+    renderNotice(t("nothingToPrint"));
     return;
   }
 
@@ -1392,7 +1965,7 @@ function handleClearRecentTrips() {
   state.recentTrips = [];
   saveRecentTrips();
   renderRecentTrips();
-  renderNotice("Recent trips cleared.");
+  renderNotice(t("recentTripsCleared"));
 }
 
 function handleGlobalKeydown(event) {
@@ -1407,6 +1980,7 @@ function rerenderCurrentTrip() {
     return;
   }
 
+  refreshDirectionPresentation(state.routeData.directions);
   renderSummary(state.routeData);
   renderTimeline(state.routeData.checkpoints);
   renderDirections(state.routeData);
@@ -1462,6 +2036,11 @@ function updateUrlFromTrip(tripData) {
   url.searchParams.set("profile", profileInput.value);
   url.searchParams.set("units", state.preferences.units);
   url.searchParams.set("directions", showDirectionsInput.checked ? "1" : "0");
+  if (state.preferences.language === "he") {
+    url.searchParams.set("lang", "he");
+  } else {
+    url.searchParams.delete("lang");
+  }
 
   if (tripData.notes) {
     url.searchParams.set("notes", tripData.notes);
@@ -1515,12 +2094,12 @@ function restoreTripFromUrl() {
 
 async function handleUseMyLocation() {
   if (!("geolocation" in navigator)) {
-    renderNotice("Your browser does not support location access.");
+    renderNotice(t("useLocationUnsupported"));
     return;
   }
 
   useMyLocationButton.disabled = true;
-  useMyLocationButton.textContent = "Locating...";
+  useMyLocationButton.textContent = t("useMyLocationBusy");
   clearNotice();
 
   try {
@@ -1540,7 +2119,7 @@ async function handleUseMyLocation() {
     state.selectedPlaces.source = place;
     sourceInput.value = place.label;
     sourceInput.dispatchEvent(new Event("change", { bubbles: true }));
-    renderNotice(`Using your current location: ${place.shortName}.`);
+    renderNotice(t("usingLocationNotice", place.shortName));
 
     if (state.map) {
       state.map.flyTo([place.latitude, place.longitude], Math.max(state.map.getZoom(), 12), {
@@ -1548,10 +2127,10 @@ async function handleUseMyLocation() {
       });
     }
   } catch (error) {
-    renderNotice("Could not access your location. Check browser permission and try again.");
+    renderNotice(t("locationAccessError"));
   } finally {
     useMyLocationButton.disabled = false;
-    useMyLocationButton.textContent = "Use my location";
+    useMyLocationButton.textContent = t("useMyLocation");
   }
 }
 
@@ -1636,7 +2215,7 @@ out center tags;
   });
 
   if (!response.ok) {
-    throw new Error("Could not load Orthodox synagogues for this map area.");
+    throw new Error(t("noShulsFoundNotice"));
   }
 
   const data = await response.json();
@@ -1662,7 +2241,7 @@ function normalizeSynagogue(element) {
     id: `${element.type}-${element.id}`,
     latitude,
     longitude,
-    name: tags.name || "Orthodox synagogue",
+    name: tags.name || t("orthodoxSynagogue"),
     denomination: tags.denomination || "orthodox",
     operator: tags.operator || "",
     brand: tags.brand || "",
@@ -1737,14 +2316,14 @@ function renderSynagogueMarkers(synagogues) {
   state.synagogueMarkersCount = synagogues.length;
 
   if (state.synagoguesVisible && synagogues.length === 0 && state.routeData) {
-    renderNotice("No Orthodox shuls were found in this map view from OpenStreetMap tags. Try zooming in further or use the GoDaven button for a broader database.");
+    renderNotice(t("noShulsFoundNotice"));
   }
 }
 
 function buildSynagoguePopup(synagogue) {
   const detailLines = [
     synagogue.address,
-    `Denomination: ${humanizeSynagogueDenomination(synagogue.denomination)}`,
+    `${t("denomination")}: ${humanizeSynagogueDenomination(synagogue.denomination)}`,
     synagogue.phone,
     synagogue.website
   ].filter(Boolean);
@@ -1758,7 +2337,7 @@ function buildSynagoguePopup(synagogue) {
 }
 
 function renderError(message) {
-  setStatus("error", "Issue");
+  setStatus("error", t("issue"));
   renderNotice(message);
 }
 
@@ -1772,16 +2351,24 @@ function clearNotice() {
 
 function setLoadingState(isLoading) {
   submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Building route..." : "Build trip forecast";
+  submitButton.textContent = isLoading ? t("buildTripForecastBusy") : t("buildTripForecast");
 
   if (isLoading) {
-    setStatus("loading", "Loading");
+    setStatus("loading", t("loading"));
   }
 }
 
 function setStatus(kind, text) {
   statusBadge.className = `status-badge ${kind}`;
   statusBadge.textContent = text;
+}
+
+function getWeatherLabel(code) {
+  if (state.preferences.language === "he") {
+    return WEATHER_CODES_HE[code] || WEATHER_CODES[code] || t("unknownConditions");
+  }
+
+  return WEATHER_CODES[code] || t("unknownConditions");
 }
 
 function buildDistanceTable(coordinates) {
@@ -1850,9 +2437,44 @@ function haversineDistance(start, end) {
 }
 
 function formatDirectionInstruction(step) {
-  const maneuver = step.maneuver ?? {};
+  const maneuver = step.maneuver ?? {
+    type: step.maneuverType,
+    modifier: step.maneuverModifier
+  };
   const modifier = maneuver.modifier ? humanizeModifier(maneuver.modifier) : "";
   const road = roadName(step);
+
+  if (state.preferences.language === "he") {
+    switch (maneuver.type) {
+      case "depart":
+        return `צא והמשך ${modifier || "ישר"} על ${road}.`;
+      case "arrive":
+        return `הגע ליעד${modifier ? ` מצד ${modifier}` : ""}.`;
+      case "turn":
+        return `פנה ${modifier || "ישר"} אל ${road}.`;
+      case "continue":
+        return `המשך על ${road}.`;
+      case "new name":
+        return `המשך כ-${road}.`;
+      case "merge":
+        return `השתלב ${modifier ? `${modifier} ` : ""}אל ${road}.`.replace("  ", " ");
+      case "fork":
+        return `הישאר ${modifier || "ישר"} כדי להישאר על ${road}.`;
+      case "on ramp":
+        return `קח את הרמפה ${modifier || ""} אל ${road}.`.replace("  ", " ");
+      case "off ramp":
+        return `קח את היציאה ${modifier || ""} לכיוון ${road}.`.replace("  ", " ");
+      case "end of road":
+        return `בסוף הדרך פנה ${modifier || "ישר"} אל ${road}.`;
+      case "roundabout":
+      case "rotary":
+        return `היכנס לכיכר והמשך לכיוון ${road}.`;
+      case "use lane":
+        return `השתמש בנתיב כדי להמשיך ${modifier || "ישר"} אל ${road}.`;
+      default:
+        return `המשך על ${road}.`;
+    }
+  }
 
   switch (maneuver.type) {
     case "depart":
@@ -1886,11 +2508,36 @@ function formatDirectionInstruction(step) {
 }
 
 function roadName(step) {
-  return step.name || step.ref || step.destinations || "the road ahead";
+  return step.name || step.ref || step.destinations || t("roadAhead");
+}
+
+function refreshDirectionPresentation(directions) {
+  directions.forEach((direction) => {
+    direction.roadName = roadName(direction);
+    direction.instruction = formatDirectionInstruction(direction);
+    direction.distanceText = formatDistance(direction.distanceMeters);
+    direction.durationText = formatDuration(direction.durationSeconds);
+  });
 }
 
 function humanizeModifier(modifier) {
-  return modifier.replaceAll("-", " ");
+  const normalized = modifier.replaceAll("-", " ");
+  if (state.preferences.language !== "he") {
+    return normalized;
+  }
+
+  const translations = {
+    left: "שמאלה",
+    right: "ימינה",
+    straight: "ישר",
+    "slight left": "שמאלה קלות",
+    "slight right": "ימינה קלות",
+    "sharp left": "שמאלה חד",
+    "sharp right": "ימינה חד",
+    uturn: "פרסה"
+  };
+
+  return translations[normalized] || normalized;
 }
 
 function humanizeSynagogueDenomination(denomination) {
@@ -1923,21 +2570,27 @@ function buildWazeUrl(destinationPlace) {
 
 function formatDistance(distanceMeters) {
   if (distanceMeters < 161) {
-    return `${Math.round(distanceMeters * 3.28084)} ft`;
+    return state.preferences.language === "he"
+      ? `${Math.round(distanceMeters * 3.28084)} רגל`
+      : `${Math.round(distanceMeters * 3.28084)} ft`;
   }
 
   const miles = distanceMeters * 0.000621371;
-  return miles >= 10 ? `${miles.toFixed(0)} mi` : `${miles.toFixed(1)} mi`;
+  const value = miles >= 10 ? miles.toFixed(0) : miles.toFixed(1);
+  return state.preferences.language === "he" ? `${value} מייל` : `${value} mi`;
 }
 
 function formatDistanceFromMeters(distanceMeters) {
   if (state.preferences.units === "metric") {
     if (distanceMeters < 1000) {
-      return `${Math.round(distanceMeters)} m`;
+      return state.preferences.language === "he"
+        ? `${Math.round(distanceMeters)} מ׳`
+        : `${Math.round(distanceMeters)} m`;
     }
 
     const kilometers = distanceMeters / 1000;
-    return kilometers >= 10 ? `${kilometers.toFixed(0)} km` : `${kilometers.toFixed(1)} km`;
+    const value = kilometers >= 10 ? kilometers.toFixed(0) : kilometers.toFixed(1);
+    return state.preferences.language === "he" ? `${value} ק״מ` : `${value} km`;
   }
 
   return formatDistance(distanceMeters);
@@ -1949,30 +2602,34 @@ function formatDuration(durationSeconds) {
   const minutes = totalMinutes % 60;
 
   if (hours === 0) {
-    return `${Math.max(minutes, 1)} min`;
+    return state.preferences.language === "he"
+      ? `${Math.max(minutes, 1)} דק׳`
+      : `${Math.max(minutes, 1)} min`;
   }
 
   if (minutes === 0) {
-    return `${hours} hr`;
+    return state.preferences.language === "he" ? `${hours} ש׳` : `${hours} hr`;
   }
 
-  return `${hours} hr ${minutes} min`;
+  return state.preferences.language === "he"
+    ? `${hours} ש׳ ${minutes} דק׳`
+    : `${hours} hr ${minutes} min`;
 }
 
 function formatTemperature(fahrenheitValue) {
   if (state.preferences.units === "metric") {
-    return `${Math.round((fahrenheitValue - 32) * (5 / 9))}C`;
+    return `${Math.round((fahrenheitValue - 32) * (5 / 9))}°C`;
   }
 
-  return `${fahrenheitValue}F`;
+  return `${fahrenheitValue}°F`;
 }
 
 function formatWind(mphValue) {
   if (state.preferences.units === "metric") {
-    return `${Math.round(mphValue * 1.60934)} km/h wind`;
+    return `${Math.round(mphValue * 1.60934)} km/h ${t("windWord")}`;
   }
 
-  return `${mphValue} mph wind`;
+  return `${mphValue} mph ${t("windWord")}`;
 }
 
 function formatSpeedFromMetersPerSecond(metersPerSecond) {
@@ -1990,7 +2647,7 @@ function toLocalInputValue(date) {
 }
 
 function formatDateTime(date) {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(state.preferences.language === "he" ? "he-IL" : "en-US", {
     weekday: "short",
     month: "short",
     day: "numeric",
@@ -2004,7 +2661,7 @@ function formatSavedTripDate(localInputValue) {
 }
 
 function formatTime(date) {
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat(state.preferences.language === "he" ? "he-IL" : "en-US", {
     hour: "numeric",
     minute: "2-digit"
   }).format(date);
@@ -2015,27 +2672,27 @@ function getRouteRisk(checkpoints) {
   const severeCode = checkpoints.some((checkpoint) => checkpoint.weatherCode >= 95);
 
   if (severeCode || maxPrecip >= 75) {
-    return { label: "Rough stretch likely" };
+    return { label: t("routeRiskRough") };
   }
 
   if (maxPrecip >= 40) {
-    return { label: "Some weather risk" };
+    return { label: t("routeRiskSome") };
   }
 
-  return { label: "Mostly calm route" };
+  return { label: t("routeRiskCalm") };
 }
 
 function describeLightCondition(date, sunData) {
   if (date < sunData.sunrise) {
-    return "Before sunrise";
+    return t("beforeSunrise");
   }
 
   if (date > sunData.sunset) {
-    return "After sunset";
+    return t("afterSunset");
   }
 
   const hoursToSunset = (sunData.sunset.getTime() - date.getTime()) / (1000 * 60 * 60);
-  return hoursToSunset < 1.5 ? "Near sunset" : "Daylight";
+  return hoursToSunset < 1.5 ? t("nearSunset") : t("daylight");
 }
 
 function buildProgressMarkup(checkpoints) {
@@ -2063,6 +2720,11 @@ function getTripShareUrl(tripData) {
   url.searchParams.set("profile", profileInput.value);
   url.searchParams.set("units", state.preferences.units);
   url.searchParams.set("directions", showDirectionsInput.checked ? "1" : "0");
+  if (state.preferences.language === "he") {
+    url.searchParams.set("lang", "he");
+  } else {
+    url.searchParams.delete("lang");
+  }
 
   if (tripData.notes) {
     url.searchParams.set("notes", tripData.notes);
@@ -2078,31 +2740,31 @@ function buildTripSummaryText(tripData, includeSteps = false) {
   const arrivalDate = checkpoints.at(-1).eta;
   const risk = getRouteRisk(checkpoints).label;
   const lines = [
-    `Trip: ${sourcePlace.label} -> ${destinationPlace.label}`,
-    `Departure: ${formatDateTime(departureDate)}`,
-    `Arrival: ${formatDateTime(arrivalDate)} (${describeLightCondition(arrivalDate, sunData.arrival)})`,
-    `Travel mode: ${capitalize(profileInput.value)}`,
-    `Distance: ${formatDistanceFromMeters(route.distanceMeters)}`,
-    `Duration: ${formatDuration(route.durationSeconds)}`,
-    `Average speed: ${formatSpeedFromMetersPerSecond(route.distanceMeters / route.durationSeconds)}`,
-    `Weather risk: ${risk}`,
-    `Sunrise at start: ${formatTime(sunData.departure.sunrise)}`,
-    `Sunset at destination: ${formatTime(sunData.arrival.sunset)}`,
-    `Weather checkpoints: ${checkpoints.length}`
+    t("tripTextHeader", sourcePlace.label, destinationPlace.label),
+    `${t("departureText")}: ${formatDateTime(departureDate)}`,
+    `${t("arrivalText")}: ${formatDateTime(arrivalDate)} (${describeLightCondition(arrivalDate, sunData.arrival)})`,
+    `${t("travelMode")}: ${profileLabel(profileInput.value)}`,
+    `${t("distance")}: ${formatDistanceFromMeters(route.distanceMeters)}`,
+    `${t("estimatedTrip")}: ${formatDuration(route.durationSeconds)}`,
+    `${t("avgSpeedText")}: ${formatSpeedFromMetersPerSecond(route.distanceMeters / route.durationSeconds)}`,
+    `${t("weatherRiskText")}: ${risk}`,
+    `${t("sunriseText")}: ${formatTime(sunData.departure.sunrise)}`,
+    `${t("sunsetText")}: ${formatTime(sunData.arrival.sunset)}`,
+    `${t("weatherCheckpointsText")}: ${checkpoints.length}`
   ];
 
   if (notes) {
-    lines.push(`Notes: ${notes}`);
+    lines.push(`${t("notes")}: ${notes}`);
   }
 
   if (includeSteps) {
     lines.push("");
-    lines.push("Weather checkpoints:");
+    lines.push(t("weatherCheckpointsSection"));
     checkpoints.forEach((checkpoint) => {
-      lines.push(`- ${checkpoint.label} | ${formatDateTime(checkpoint.eta)} | ${checkpoint.weatherLabel}, ${formatTemperature(checkpoint.temperature)}, ${checkpoint.precipitationProbability}% precip, ${formatWind(checkpoint.windSpeed)}`);
+      lines.push(`- ${checkpoint.label} | ${formatDateTime(checkpoint.eta)} | ${getWeatherLabel(checkpoint.weatherCode)}, ${formatTemperature(checkpoint.temperature)}, ${checkpoint.precipitationProbability}% ${t("precipShort")}, ${formatWind(checkpoint.windSpeed)}`);
     });
     lines.push("");
-    lines.push("Directions:");
+    lines.push(t("directionsSectionText"));
     directions.forEach((direction) => {
       lines.push(`- ${direction.instruction} (${direction.distanceText}, ${direction.durationText})`);
     });
@@ -2140,6 +2802,18 @@ function lerp(start, end, amount) {
 
 function capitalize(value) {
   return value.charAt(0).toUpperCase() + value.slice(1);
+}
+
+function profileLabel(profile) {
+  if (profile === "cycling") {
+    return t("profileCycling");
+  }
+
+  if (profile === "walking") {
+    return t("profileWalking");
+  }
+
+  return t("profileDriving");
 }
 
 function escapeHtml(value) {
