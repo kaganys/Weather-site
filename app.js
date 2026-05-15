@@ -10,6 +10,7 @@ const submitButton = document.getElementById("submitButton");
 const swapTripButton = document.getElementById("swapTrip");
 const recenterMapButton = document.getElementById("recenterMap");
 const toggleMarkersButton = document.getElementById("toggleMarkers");
+const toggleSynagoguesButton = document.getElementById("toggleSynagogues");
 const jumpToDirectionsButton = document.getElementById("jumpToDirections");
 const resultsTitle = document.getElementById("resultsTitle");
 const summary = document.getElementById("summary");
@@ -85,6 +86,10 @@ const state = {
   layers: null,
   routeBounds: null,
   checkpointMarkersVisible: true,
+  synagoguesVisible: true,
+  synagogueFetchTimer: null,
+  synagogueFetchController: null,
+  synagogueMarkersCount: 0,
   checkpointMarkersById: new Map(),
   routeData: null
 };
@@ -102,6 +107,7 @@ function initialize() {
   swapTripButton.addEventListener("click", handleSwapTrip);
   recenterMapButton.addEventListener("click", recenterMapToRoute);
   toggleMarkersButton.addEventListener("click", handleToggleMarkers);
+  toggleSynagoguesButton.addEventListener("click", handleToggleSynagogues);
   jumpToDirectionsButton.addEventListener("click", handleJumpToDirections);
   document.addEventListener("click", handleDocumentClick);
   updateDirectionsVisibility();
@@ -143,8 +149,11 @@ function initializeMap() {
       lineJoin: "round"
     }).addTo(map),
     checkpoints: L.layerGroup().addTo(map),
+    synagogues: L.layerGroup().addTo(map),
     directions: L.layerGroup().addTo(map)
   };
+
+  map.on("moveend", scheduleSynagogueRefresh);
 }
 
 function bindAutocomplete(fieldName, input, suggestionBox) {
@@ -710,6 +719,7 @@ function renderTrip(tripData) {
   renderMap(sourcePlace, destinationPlace, route, checkpoints);
   renderMapLegend(route, checkpoints);
   mapEmpty.classList.add("is-hidden");
+  scheduleSynagogueRefresh();
 
   const wettestCheckpoint = [...checkpoints].sort(
     (left, right) => right.precipitationProbability - left.precipitationProbability
@@ -861,6 +871,7 @@ function renderMapLegend(route, checkpoints) {
     <span class="legend-chip">${capitalize(profileInput.value)}</span>
     <span class="legend-chip">${Math.round(route.distanceMeters * 0.000621371)} miles</span>
     <span class="legend-chip">${checkpoints.length} half-hour weather stops</span>
+    <span class="legend-chip">${state.synagoguesVisible ? `${state.synagogueMarkersCount} Orthodox shuls in view` : "Orthodox shul layer hidden"}</span>
     <span class="legend-chip">Wettest near ${escapeHtml(wettestCheckpoint.cityName)}</span>
   `;
 }
@@ -937,8 +948,20 @@ function buildCheckpointPopup(checkpoint) {
 }
 
 function createMapIcon(type, index) {
-  const label = type === "start" ? "S" : type === "end" ? "E" : String(index);
-  const className = type === "start" ? "pin-start" : type === "end" ? "pin-end" : "pin-checkpoint";
+  const label = type === "start"
+    ? "S"
+    : type === "end"
+      ? "E"
+      : type === "synagogue"
+        ? "\u2721"
+        : String(index);
+  const className = type === "start"
+    ? "pin-start"
+    : type === "end"
+      ? "pin-end"
+      : type === "synagogue"
+        ? "pin-synagogue"
+        : "pin-checkpoint";
 
   return L.divIcon({
     className: "",
@@ -974,6 +997,15 @@ function handleToggleMarkers() {
   updateMarkerLayerVisibility();
 }
 
+function handleToggleSynagogues() {
+  state.synagoguesVisible = !state.synagoguesVisible;
+  updateSynagogueLayerVisibility();
+
+  if (state.synagoguesVisible) {
+    scheduleSynagogueRefresh();
+  }
+}
+
 function updateMarkerLayerVisibility() {
   toggleMarkersButton.textContent = state.checkpointMarkersVisible ? "Hide checkpoints" : "Show checkpoints";
 
@@ -983,6 +1015,22 @@ function updateMarkerLayerVisibility() {
     }
   } else if (state.map.hasLayer(state.layers.checkpoints)) {
     state.map.removeLayer(state.layers.checkpoints);
+  }
+}
+
+function updateSynagogueLayerVisibility() {
+  toggleSynagoguesButton.textContent = state.synagoguesVisible ? "Hide Orthodox shuls" : "Show Orthodox shuls";
+
+  if (state.synagoguesVisible) {
+    if (!state.map.hasLayer(state.layers.synagogues)) {
+      state.layers.synagogues.addTo(state.map);
+    }
+  } else if (state.map.hasLayer(state.layers.synagogues)) {
+    state.map.removeLayer(state.layers.synagogues);
+  }
+
+  if (state.routeData) {
+    renderMapLegend(state.routeData.route, state.routeData.checkpoints);
   }
 }
 
@@ -997,6 +1045,139 @@ function handleJumpToDirections() {
 
 function updateDirectionsVisibility() {
   directionsSection.classList.toggle("is-hidden", !showDirectionsInput.checked);
+}
+
+function scheduleSynagogueRefresh() {
+  clearTimeout(state.synagogueFetchTimer);
+  state.synagogueFetchTimer = window.setTimeout(() => {
+    void refreshSynagogueMarkers();
+  }, 250);
+}
+
+async function refreshSynagogueMarkers() {
+  if (!state.map || !state.synagoguesVisible) {
+    return;
+  }
+
+  if (state.map.getZoom() < 10) {
+    state.layers.synagogues.clearLayers();
+    state.synagogueMarkersCount = 0;
+
+    if (state.routeData) {
+      renderMapLegend(state.routeData.route, state.routeData.checkpoints);
+    }
+
+    return;
+  }
+
+  if (state.synagogueFetchController) {
+    state.synagogueFetchController.abort();
+  }
+
+  const controller = new AbortController();
+  state.synagogueFetchController = controller;
+
+  try {
+    const synagogues = await fetchOrthodoxSynagogues(state.map.getBounds(), controller.signal);
+    renderSynagogueMarkers(synagogues);
+
+    if (state.routeData) {
+      renderMapLegend(state.routeData.route, state.routeData.checkpoints);
+    }
+  } catch (error) {
+    if (error.name !== "AbortError") {
+      state.layers.synagogues.clearLayers();
+      state.synagogueMarkersCount = 0;
+    }
+  }
+}
+
+async function fetchOrthodoxSynagogues(bounds, signal) {
+  const south = bounds.getSouth();
+  const west = bounds.getWest();
+  const north = bounds.getNorth();
+  const east = bounds.getEast();
+  const denominationPattern = "^(orthodox|modern_orthodox|neo_orthodox|orthodox_ashkenaz|orthodox_sefard|ultra_orthodox|hasidic|lubavitch|lubavitch_messianic)$";
+  const query = `
+[out:json][timeout:20];
+(
+  node["amenity"="place_of_worship"]["religion"="jewish"]["denomination"~"${denominationPattern}"](${south},${west},${north},${east});
+  way["amenity"="place_of_worship"]["religion"="jewish"]["denomination"~"${denominationPattern}"](${south},${west},${north},${east});
+  relation["amenity"="place_of_worship"]["religion"="jewish"]["denomination"~"${denominationPattern}"](${south},${west},${north},${east});
+);
+out center tags;
+  `.trim();
+
+  const response = await fetch("https://overpass-api.de/api/interpreter", {
+    method: "POST",
+    body: query,
+    signal,
+    headers: {
+      "Content-Type": "text/plain"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("Could not load Orthodox synagogues for this map area.");
+  }
+
+  const data = await response.json();
+  return (data.elements ?? []).map((element) => normalizeSynagogue(element));
+}
+
+function normalizeSynagogue(element) {
+  const latitude = element.lat ?? element.center?.lat;
+  const longitude = element.lon ?? element.center?.lon;
+  const tags = element.tags ?? {};
+  const addressBits = [
+    [tags["addr:housenumber"], tags["addr:street"]].filter(Boolean).join(" ").trim(),
+    tags["addr:city"] || tags["addr:town"] || tags["addr:village"],
+    tags["addr:country"]
+  ].filter(Boolean);
+
+  return {
+    id: `${element.type}-${element.id}`,
+    latitude,
+    longitude,
+    name: tags.name || "Orthodox synagogue",
+    denomination: tags.denomination || "orthodox",
+    address: addressBits.join(", "),
+    website: tags.website || tags.contact_website || "",
+    phone: tags.phone || tags.contact_phone || ""
+  };
+}
+
+function renderSynagogueMarkers(synagogues) {
+  state.layers.synagogues.clearLayers();
+
+  synagogues
+    .filter((synagogue) => Number.isFinite(synagogue.latitude) && Number.isFinite(synagogue.longitude))
+    .forEach((synagogue) => {
+      const marker = L.marker([synagogue.latitude, synagogue.longitude], {
+        icon: createMapIcon("synagogue")
+      });
+
+      marker.bindPopup(buildSynagoguePopup(synagogue));
+      marker.addTo(state.layers.synagogues);
+    });
+
+  state.synagogueMarkersCount = synagogues.length;
+}
+
+function buildSynagoguePopup(synagogue) {
+  const detailLines = [
+    synagogue.address,
+    `Denomination: ${humanizeSynagogueDenomination(synagogue.denomination)}`,
+    synagogue.phone,
+    synagogue.website
+  ].filter(Boolean);
+
+  return `
+    <div class="popup-card">
+      <strong>${escapeHtml(synagogue.name)}</strong>
+      ${detailLines.map((line) => `<span>${escapeHtml(line)}</span>`).join("")}
+    </div>
+  `;
 }
 
 function renderError(message) {
@@ -1133,6 +1314,10 @@ function roadName(step) {
 
 function humanizeModifier(modifier) {
   return modifier.replaceAll("-", " ");
+}
+
+function humanizeSynagogueDenomination(denomination) {
+  return denomination.replaceAll("_", " ");
 }
 
 function formatDistance(distanceMeters) {

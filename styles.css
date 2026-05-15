@@ -262,6 +262,10 @@ select:focus {
   box-shadow: 0 26px 56px rgba(20, 36, 50, 0.14);
 }
 
+.suggestions[hidden] {
+  display: none;
+}
+
 .suggestion-item,
 .suggestion-state {
   border-radius: 16px;
@@ -849,6 +853,11 @@ select:focus {
 
 .pin-checkpoint {
   background: linear-gradient(135deg, #4f7398, #6ea4bc);
+}
+
+.pin-synagogue {
+  background: linear-gradient(135deg, #2f4f8d, #557cc1);
+  font-size: 0.78rem;
 }
 
 .leaflet-popup-content-wrapper,
