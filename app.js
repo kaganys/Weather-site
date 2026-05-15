@@ -5,8 +5,6 @@ const sourceSuggestions = document.getElementById("sourceSuggestions");
 const destinationSuggestions = document.getElementById("destinationSuggestions");
 const departureTimeInput = document.getElementById("departureTime");
 const profileInput = document.getElementById("profile");
-const spacingInput = document.getElementById("spacing");
-const densityInput = document.getElementById("density");
 const showDirectionsInput = document.getElementById("showDirections");
 const submitButton = document.getElementById("submitButton");
 const swapTripButton = document.getElementById("swapTrip");
@@ -24,6 +22,7 @@ const mapEmpty = document.getElementById("mapEmpty");
 const mapLegend = document.getElementById("mapLegend");
 const timelineCardTemplate = document.getElementById("timeline-card-template");
 const directionStepTemplate = document.getElementById("direction-step-template");
+const quickTimeButtons = Array.from(document.querySelectorAll(".quick-time"));
 
 const WEATHER_CODES = {
   0: "Clear sky",
@@ -56,8 +55,9 @@ const WEATHER_CODES = {
   99: "Storm with heavy hail"
 };
 
+const CHECKPOINT_INTERVAL_MINUTES = 30;
 const FORECAST_HOURS_LIMIT = 16 * 24;
-const AUTOCOMPLETE_MINIMUM = 2;
+const AUTOCOMPLETE_MINIMUM = 3;
 
 const state = {
   selectedPlaces: {
@@ -72,6 +72,15 @@ const state = {
     source: null,
     destination: null
   },
+  suggestionResults: {
+    source: [],
+    destination: []
+  },
+  suggestionIndex: {
+    source: -1,
+    destination: -1
+  },
+  reverseGeocodeCache: new Map(),
   map: null,
   layers: null,
   routeBounds: null,
@@ -87,6 +96,7 @@ function initialize() {
   initializeMap();
   bindAutocomplete("source", sourceInput, sourceSuggestions);
   bindAutocomplete("destination", destinationInput, destinationSuggestions);
+  bindQuickTimeButtons();
   form.addEventListener("submit", handleSubmit);
   showDirectionsInput.addEventListener("change", updateDirectionsVisibility);
   swapTripButton.addEventListener("click", handleSwapTrip);
@@ -127,7 +137,7 @@ function initializeMap() {
   state.map = map;
   state.layers = {
     route: L.polyline([], {
-      color: "#0e8b78",
+      color: "#0b8b77",
       weight: 6,
       opacity: 0.84,
       lineJoin: "round"
@@ -151,19 +161,42 @@ function bindAutocomplete(fieldName, input, suggestionBox) {
   });
 
   input.addEventListener("keydown", (event) => {
-    if (event.key === "Escape") {
-      hideSuggestions(suggestionBox);
-    }
+    handleAutocompleteKeydown(event, fieldName, suggestionBox);
   });
 }
 
-function queueSuggestions(fieldName, query, suggestionBox, delay = 250) {
+function bindQuickTimeButtons() {
+  quickTimeButtons.forEach((button) => {
+    button.addEventListener("click", () => {
+      const shiftMinutes = Number(button.dataset.departureShift);
+      const preset = button.dataset.departurePreset;
+
+      if (!Number.isNaN(shiftMinutes)) {
+        departureTimeInput.value = toLocalInputValue(new Date(Date.now() + shiftMinutes * 60 * 1000));
+        return;
+      }
+
+      if (preset === "tomorrow-8") {
+        const tomorrowMorning = new Date();
+        tomorrowMorning.setDate(tomorrowMorning.getDate() + 1);
+        tomorrowMorning.setHours(8, 0, 0, 0);
+        departureTimeInput.value = toLocalInputValue(tomorrowMorning);
+      }
+    });
+  });
+}
+
+function queueSuggestions(fieldName, query, suggestionBox, delay = 140) {
   clearTimeout(state.suggestionTimers[fieldName]);
 
   if (query.length < AUTOCOMPLETE_MINIMUM) {
+    state.suggestionResults[fieldName] = [];
+    state.suggestionIndex[fieldName] = -1;
     hideSuggestions(suggestionBox);
     return;
   }
+
+  renderSuggestionState(suggestionBox, "Searching addresses...");
 
   state.suggestionTimers[fieldName] = window.setTimeout(async () => {
     if (state.suggestionControllers[fieldName]) {
@@ -175,52 +208,96 @@ function queueSuggestions(fieldName, query, suggestionBox, delay = 250) {
 
     try {
       const suggestions = await fetchPlaceSuggestions(query, controller.signal);
-      renderSuggestions(fieldName, suggestionBox, suggestions);
+      state.suggestionResults[fieldName] = suggestions;
+      state.suggestionIndex[fieldName] = suggestions.length ? 0 : -1;
+      renderSuggestions(fieldName, suggestionBox);
     } catch (error) {
       if (error.name !== "AbortError") {
-        hideSuggestions(suggestionBox);
+        renderSuggestionState(suggestionBox, "Suggestion lookup failed.");
       }
     }
   }, delay);
 }
 
-async function fetchPlaceSuggestions(query, signal) {
-  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
-  url.searchParams.set("name", query);
-  url.searchParams.set("count", "5");
-  url.searchParams.set("language", "en");
-  url.searchParams.set("format", "json");
+function handleAutocompleteKeydown(event, fieldName, suggestionBox) {
+  const suggestions = state.suggestionResults[fieldName];
+  const hasSuggestionsOpen = !suggestionBox.hidden && suggestions.length > 0;
 
-  const response = await fetch(url, { signal });
-  if (!response.ok) {
-    throw new Error("Suggestion lookup failed.");
-  }
-
-  const data = await response.json();
-  const results = data.results ?? [];
-
-  return results.map((place) => normalizePlace(place));
-}
-
-function renderSuggestions(fieldName, suggestionBox, places) {
-  suggestionBox.innerHTML = "";
-
-  if (!places.length) {
+  if (event.key === "Escape") {
     hideSuggestions(suggestionBox);
     return;
   }
 
-  places.forEach((place) => {
+  if (event.key === "ArrowDown" && hasSuggestionsOpen) {
+    event.preventDefault();
+    state.suggestionIndex[fieldName] = (state.suggestionIndex[fieldName] + 1) % suggestions.length;
+    renderSuggestions(fieldName, suggestionBox);
+    return;
+  }
+
+  if (event.key === "ArrowUp" && hasSuggestionsOpen) {
+    event.preventDefault();
+    state.suggestionIndex[fieldName] = (state.suggestionIndex[fieldName] - 1 + suggestions.length) % suggestions.length;
+    renderSuggestions(fieldName, suggestionBox);
+    return;
+  }
+
+  if (event.key === "Enter" && hasSuggestionsOpen && state.suggestionIndex[fieldName] >= 0) {
+    event.preventDefault();
+    const selected = suggestions[state.suggestionIndex[fieldName]];
+    selectSuggestion(fieldName, selected);
+    hideSuggestions(suggestionBox);
+  }
+}
+
+async function fetchPlaceSuggestions(query, signal) {
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "5");
+  url.searchParams.set("q", query);
+
+  const response = await fetch(url, {
+    signal,
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
+  if (!response.ok) {
+    throw new Error("Suggestion lookup failed.");
+  }
+
+  const results = await response.json();
+  return results.map(normalizeNominatimPlace);
+}
+
+function renderSuggestions(fieldName, suggestionBox) {
+  const suggestions = state.suggestionResults[fieldName];
+  const activeIndex = state.suggestionIndex[fieldName];
+  suggestionBox.innerHTML = "";
+
+  if (!suggestions.length) {
+    renderSuggestionState(suggestionBox, "No matching addresses yet.");
+    return;
+  }
+
+  suggestions.forEach((place, index) => {
     const button = document.createElement("button");
     button.type = "button";
-    button.className = "suggestion-item";
+    button.className = `suggestion-item${index === activeIndex ? " is-active" : ""}`;
     button.innerHTML = `
       <span class="suggestion-main">${escapeHtml(place.shortName)}</span>
-      <span class="suggestion-meta">${escapeHtml(place.context || place.country || "Suggested match")}</span>
+      <span class="suggestion-meta">${escapeHtml(place.context)}</span>
     `;
 
     button.addEventListener("mousedown", (event) => {
       event.preventDefault();
+    });
+
+    button.addEventListener("mouseenter", () => {
+      state.suggestionIndex[fieldName] = index;
+      renderSuggestions(fieldName, suggestionBox);
     });
 
     button.addEventListener("click", () => {
@@ -234,6 +311,11 @@ function renderSuggestions(fieldName, suggestionBox, places) {
   suggestionBox.hidden = false;
 }
 
+function renderSuggestionState(suggestionBox, message) {
+  suggestionBox.hidden = false;
+  suggestionBox.innerHTML = `<div class="suggestion-state">${escapeHtml(message)}</div>`;
+}
+
 function hideSuggestions(suggestionBox) {
   suggestionBox.hidden = true;
   suggestionBox.innerHTML = "";
@@ -241,9 +323,8 @@ function hideSuggestions(suggestionBox) {
 
 function selectSuggestion(fieldName, place) {
   state.selectedPlaces[fieldName] = place;
-
-  const targetInput = fieldName === "source" ? sourceInput : destinationInput;
-  targetInput.value = place.label;
+  const input = fieldName === "source" ? sourceInput : destinationInput;
+  input.value = place.label;
 }
 
 function handleDocumentClick(event) {
@@ -259,8 +340,6 @@ async function handleSubmit(event) {
   event.preventDefault();
 
   const departureDate = new Date(departureTimeInput.value);
-  const spacingMinutes = Number(spacingInput.value);
-  const density = densityInput.value;
 
   if (Number.isNaN(departureDate.getTime())) {
     renderError("Please choose a valid departure time.");
@@ -282,7 +361,7 @@ async function handleSubmit(event) {
     ]);
 
     const route = await getRoute(sourcePlace, destinationPlace, profileInput.value);
-    const checkpoints = buildCheckpoints(route, departureDate, spacingMinutes, density);
+    const checkpoints = buildCheckpoints(route, departureDate);
     const forecastHorizonHours = (checkpoints.at(-1).eta.getTime() - Date.now()) / (1000 * 60 * 60);
 
     if (forecastHorizonHours > FORECAST_HOURS_LIMIT) {
@@ -316,53 +395,73 @@ async function handleSubmit(event) {
 }
 
 async function resolvePlace(fieldName, value) {
-  const trimmedValue = value.trim();
-
-  if (!trimmedValue) {
-    throw new Error("Please provide both a starting point and a destination.");
+  if (!value) {
+    throw new Error("Please provide both a starting address and a destination.");
   }
 
   const selected = state.selectedPlaces[fieldName];
-  if (selected && selected.label === trimmedValue) {
+  if (selected && selected.label === value) {
     return selected;
   }
 
-  return geocodeLocation(trimmedValue);
+  return geocodeLocation(value);
 }
 
 async function geocodeLocation(query) {
-  const url = new URL("https://geocoding-api.open-meteo.com/v1/search");
-  url.searchParams.set("name", query);
-  url.searchParams.set("count", "1");
-  url.searchParams.set("language", "en");
-  url.searchParams.set("format", "json");
+  const url = new URL("https://nominatim.openstreetmap.org/search");
+  url.searchParams.set("format", "jsonv2");
+  url.searchParams.set("addressdetails", "1");
+  url.searchParams.set("limit", "1");
+  url.searchParams.set("q", query);
 
-  const response = await fetch(url);
+  const response = await fetch(url, {
+    headers: {
+      Accept: "application/json"
+    }
+  });
+
   if (!response.ok) {
-    throw new Error("Could not look up that location.");
+    throw new Error("Could not look up that address.");
   }
 
-  const data = await response.json();
-  const place = data.results?.[0];
+  const results = await response.json();
+  const place = results[0];
 
   if (!place) {
-    throw new Error(`No location match found for "${query}".`);
+    throw new Error(`No address match found for "${query}".`);
   }
 
-  return normalizePlace(place);
+  return normalizeNominatimPlace(place);
 }
 
-function normalizePlace(place) {
-  const context = [place.admin1, place.country].filter(Boolean).join(", ");
+function normalizeNominatimPlace(place) {
+  const address = place.address ?? {};
+  const mainName = [
+    address.house_number,
+    address.road || address.pedestrian || address.cycleway || address.footway
+  ].filter(Boolean).join(" ").trim();
+
+  const fallbackName = place.name
+    || mainName
+    || address.city
+    || address.town
+    || address.village
+    || address.suburb
+    || place.display_name;
+
+  const context = [
+    address.city || address.town || address.village || address.hamlet || address.suburb,
+    address.state,
+    address.country
+  ].filter(Boolean).join(", ");
 
   return {
-    id: place.id,
-    shortName: place.name,
-    context,
-    country: place.country,
-    label: [place.name, place.admin1, place.country].filter(Boolean).join(", "),
-    latitude: place.latitude,
-    longitude: place.longitude
+    id: place.place_id,
+    shortName: fallbackName,
+    context: context || place.display_name,
+    label: place.display_name,
+    latitude: Number(place.lat),
+    longitude: Number(place.lon)
   };
 }
 
@@ -413,44 +512,38 @@ function flattenDirections(legs) {
       distanceText: formatDistance(step.distance),
       durationText: formatDuration(step.duration),
       latitude,
-      longitude,
-      roadName: roadName(step),
-      raw: step
+      longitude
     };
   });
 }
 
-function buildCheckpoints(route, departureDate, spacingMinutes, density) {
-  const maxIntermediateStopsByDensity = {
-    compact: 5,
-    balanced: 8,
-    detailed: 12
-  };
+function buildCheckpoints(route, departureDate) {
+  const totalDurationSeconds = route.durationSeconds;
+  const totalDurationMinutes = totalDurationSeconds / 60;
+  const elapsedMinutes = [0];
 
-  const totalMinutes = route.durationSeconds / 60;
-  const estimatedStopCount = Math.floor(totalMinutes / spacingMinutes);
-  const maxIntermediateStops = maxIntermediateStopsByDensity[density] ?? 8;
-  const intermediateStops = clamp(estimatedStopCount, 0, maxIntermediateStops);
-  const totalStops = intermediateStops + 2;
+  for (let minutes = CHECKPOINT_INTERVAL_MINUTES; minutes < totalDurationMinutes; minutes += CHECKPOINT_INTERVAL_MINUTES) {
+    elapsedMinutes.push(minutes);
+  }
+
+  elapsedMinutes.push(totalDurationMinutes);
+
   const coordinatesWithDistance = buildDistanceTable(route.coordinates);
-  const checkpoints = [];
 
-  for (let index = 0; index < totalStops; index += 1) {
-    const fraction = totalStops === 1 ? 0 : index / (totalStops - 1);
-    const offsetSeconds = route.durationSeconds * fraction;
-    const eta = new Date(departureDate.getTime() + offsetSeconds * 1000);
-    const point = interpolatePoint(coordinatesWithDistance, fraction);
+  return elapsedMinutes.map((minutes, index) => {
+    const progress = totalDurationMinutes === 0 ? 0 : minutes / totalDurationMinutes;
+    const eta = new Date(departureDate.getTime() + minutes * 60 * 1000);
+    const point = interpolatePoint(coordinatesWithDistance, progress);
 
-    checkpoints.push({
-      id: `${index}-${fraction.toFixed(4)}`,
+    return {
+      id: `${index}-${minutes.toFixed(2)}`,
       eta,
       latitude: point.latitude,
       longitude: point.longitude,
-      progress: fraction
-    });
-  }
-
-  return checkpoints;
+      progress,
+      elapsedMinutes: Math.round(minutes)
+    };
+  });
 }
 
 async function loadCheckpointBundle(checkpoint, index, totalCount, sourcePlace, destinationPlace) {
@@ -474,8 +567,14 @@ async function resolveCheckpointLocation(checkpoint, index, totalCount, sourcePl
     return destinationPlace.shortName;
   }
 
+  const cacheKey = `${checkpoint.latitude.toFixed(2)},${checkpoint.longitude.toFixed(2)}`;
+  if (state.reverseGeocodeCache.has(cacheKey)) {
+    return state.reverseGeocodeCache.get(cacheKey);
+  }
+
   try {
     const nearbyName = await reverseGeocodeNearbyPlace(checkpoint.latitude, checkpoint.longitude);
+    state.reverseGeocodeCache.set(cacheKey, nearbyName);
     return nearbyName;
   } catch {
     return null;
@@ -489,7 +588,6 @@ async function reverseGeocodeNearbyPlace(latitude, longitude) {
   url.searchParams.set("lon", String(longitude));
   url.searchParams.set("zoom", "10");
   url.searchParams.set("addressdetails", "1");
-  url.searchParams.set("accept-language", "en");
 
   const response = await fetch(url, {
     headers: {
@@ -498,7 +596,7 @@ async function reverseGeocodeNearbyPlace(latitude, longitude) {
   });
 
   if (!response.ok) {
-    throw new Error("Could not reverse geocode.");
+    throw new Error("Reverse geocode failed.");
   }
 
   const data = await response.json();
@@ -538,16 +636,16 @@ function applyCheckpointLabels(checkpoints, sourcePlace, destinationPlace) {
 
     const cityName = checkpoint.locationName?.trim();
     const normalizedCityName = cityName?.toLowerCase();
-    const hasUniqueCityName = normalizedCityName && !usedNames.has(normalizedCityName);
+    const uniqueCityName = normalizedCityName && !usedNames.has(normalizedCityName);
 
-    if (hasUniqueCityName) {
+    if (uniqueCityName) {
       usedNames.add(normalizedCityName);
     }
 
     return {
       ...checkpoint,
-      label: hasUniqueCityName ? `Near ${cityName}` : `${Math.round(checkpoint.progress * 100)}% into trip`,
-      cityName: cityName || `Checkpoint ${Math.round(checkpoint.progress * 100)}%`
+      label: uniqueCityName ? `Near ${cityName}` : `${checkpoint.elapsedMinutes} min into trip`,
+      cityName: cityName || `Stop at ${checkpoint.elapsedMinutes} min`
     };
   });
 }
@@ -576,18 +674,13 @@ async function loadCheckpointWeather(checkpoint) {
     throw new Error("No matching hourly forecast was available for part of this trip.");
   }
 
-  const weatherCode = hourly.weather_code[targetIndex];
-  const temp = Math.round(hourly.temperature_2m[targetIndex]);
-  const precipChance = Math.round(hourly.precipitation_probability[targetIndex]);
-  const wind = Math.round(hourly.wind_speed_10m[targetIndex]);
-
   return {
     ...checkpoint,
     forecastTime: new Date(hourly.time[targetIndex] * 1000),
-    weatherLabel: WEATHER_CODES[weatherCode] || "Unknown conditions",
-    temperature: temp,
-    precipitationProbability: precipChance,
-    windSpeed: wind
+    weatherLabel: WEATHER_CODES[hourly.weather_code[targetIndex]] || "Unknown conditions",
+    temperature: Math.round(hourly.temperature_2m[targetIndex]),
+    precipitationProbability: Math.round(hourly.precipitation_probability[targetIndex]),
+    windSpeed: Math.round(hourly.wind_speed_10m[targetIndex])
   };
 }
 
@@ -624,8 +717,8 @@ function renderTrip(tripData) {
 
   renderNotice(
     wettestCheckpoint.precipitationProbability >= 50
-      ? `Heads up: the wettest stretch is near ${wettestCheckpoint.cityName} around ${formatTime(wettestCheckpoint.eta)} with about a ${wettestCheckpoint.precipitationProbability}% precipitation chance.`
-      : `Forecasts look fairly calm along this route. Click any checkpoint or direction step to focus it on the map.`
+      ? `Watch the stretch near ${wettestCheckpoint.cityName} around ${formatTime(wettestCheckpoint.eta)}. It currently shows about a ${wettestCheckpoint.precipitationProbability}% precipitation chance.`
+      : "Route built. Click any checkpoint or direction step to focus it on the map."
   );
 }
 
@@ -637,8 +730,8 @@ function renderSummary(sourcePlace, destinationPlace, route, departureDate, chec
 
   summary.classList.remove("empty");
   summary.innerHTML = `
-    <p class="summary-route">Leaving <strong>${escapeHtml(sourcePlace.label)}</strong> at <strong>${formatDateTime(departureDate)}</strong> and routing to <strong>${escapeHtml(destinationPlace.label)}</strong>.</p>
-    <p class="summary-subcopy">Sampled across nearby cities and route intervals so the forecast follows your expected arrival time, not just the start city.</p>
+    <p class="summary-route">Leaving <strong>${escapeHtml(sourcePlace.label)}</strong> at <strong>${formatDateTime(departureDate)}</strong> and heading to <strong>${escapeHtml(destinationPlace.label)}</strong>.</p>
+    <p class="summary-subcopy">Weather is sampled every 30 minutes along the route, then labeled with nearby cities whenever possible.</p>
     <div class="summary-grid">
       <div class="summary-stat">
         <span class="label">Estimated trip</span>
@@ -673,11 +766,11 @@ function renderSummary(sourcePlace, destinationPlace, route, departureDate, chec
         <span class="value">${capitalize(profileInput.value)}</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Spacing</span>
-        <span class="value">${spacingInput.value} min</span>
+        <span class="label">Sampling</span>
+        <span class="value">Every 30 min</span>
       </div>
       <div class="summary-stat">
-        <span class="label">Forecast range</span>
+        <span class="label">Forecast spread</span>
         <span class="value">${coldestPoint.temperature}F to ${warmestPoint.temperature}F</span>
       </div>
     </div>
@@ -693,7 +786,7 @@ function renderTimeline(checkpoints) {
     const card = fragment.querySelector(".timeline-card");
     card.dataset.checkpointId = checkpoint.id;
     fragment.querySelector(".checkpoint-label").textContent = checkpoint.label;
-    fragment.querySelector(".eta-text").textContent = formatDateTime(checkpoint.eta);
+    fragment.querySelector(".eta-text").textContent = `${formatDateTime(checkpoint.eta)} • +${checkpoint.elapsedMinutes} min`;
     fragment.querySelector(".weather-main").textContent = `${checkpoint.weatherLabel} • ${checkpoint.temperature}F`;
     fragment.querySelector(".weather-meta").textContent = `${checkpoint.precipitationProbability}% precip • ${checkpoint.windSpeed} mph wind`;
 
@@ -741,7 +834,7 @@ function renderMap(sourcePlace, destinationPlace, route, checkpoints) {
   checkpoints.forEach((checkpoint, index) => {
     const markerType = index === 0 ? "start" : index === checkpoints.length - 1 ? "end" : "checkpoint";
     const marker = L.marker([checkpoint.latitude, checkpoint.longitude], {
-      icon: createMapIcon(markerType, index, checkpoints.length)
+      icon: createMapIcon(markerType, index)
     });
 
     marker.bindPopup(buildCheckpointPopup(checkpoint));
@@ -750,12 +843,11 @@ function renderMap(sourcePlace, destinationPlace, route, checkpoints) {
     state.checkpointMarkersById.set(checkpoint.id, marker);
   });
 
-  const bounds = L.latLngBounds(routeLatLngs);
-  state.routeBounds = bounds;
-  state.map.fitBounds(bounds, {
+  state.routeBounds = L.latLngBounds(routeLatLngs);
+  state.map.fitBounds(state.routeBounds, {
     padding: [40, 40]
   });
-
+  state.map.invalidateSize();
   updateMarkerLayerVisibility();
 }
 
@@ -768,7 +860,7 @@ function renderMapLegend(route, checkpoints) {
   mapLegend.innerHTML = `
     <span class="legend-chip">${capitalize(profileInput.value)}</span>
     <span class="legend-chip">${Math.round(route.distanceMeters * 0.000621371)} miles</span>
-    <span class="legend-chip">${checkpoints.length} forecast checkpoints</span>
+    <span class="legend-chip">${checkpoints.length} half-hour weather stops</span>
     <span class="legend-chip">Wettest near ${escapeHtml(wettestCheckpoint.cityName)}</span>
   `;
 }
@@ -804,7 +896,7 @@ function focusDirectionStep(directionIndex) {
 
   const marker = L.circleMarker([direction.latitude, direction.longitude], {
     radius: 10,
-    color: "#e68c2b",
+    color: "#e68f2f",
     weight: 3,
     fillColor: "#fff4db",
     fillOpacity: 0.95
@@ -844,7 +936,7 @@ function buildCheckpointPopup(checkpoint) {
   `;
 }
 
-function createMapIcon(type, index, totalCount) {
+function createMapIcon(type, index) {
   const label = type === "start" ? "S" : type === "end" ? "E" : String(index);
   const className = type === "start" ? "pin-start" : type === "end" ? "pin-end" : "pin-checkpoint";
 
@@ -922,7 +1014,7 @@ function clearNotice() {
 
 function setLoadingState(isLoading) {
   submitButton.disabled = isLoading;
-  submitButton.textContent = isLoading ? "Planning..." : "Plan trip weather";
+  submitButton.textContent = isLoading ? "Building route..." : "Build trip forecast";
 
   if (isLoading) {
     setStatus("loading", "Loading");
@@ -1093,10 +1185,6 @@ function formatTime(date) {
 
 function lerp(start, end, amount) {
   return start + (end - start) * amount;
-}
-
-function clamp(value, minimum, maximum) {
-  return Math.min(Math.max(value, minimum), maximum);
 }
 
 function capitalize(value) {

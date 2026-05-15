@@ -18,41 +18,54 @@
 <body>
   <div class="page-shell">
     <header class="hero">
-      <p class="eyebrow">Weather + Routing</p>
-      <h1>Plan the trip, watch the map, and follow the forecast city by city.</h1>
-      <p class="hero-copy">
-        Search real places as you type, choose your departure time, and see forecast checkpoints, route geometry,
-        and optional turn-by-turn directions for the drive ahead.
-      </p>
+      <div class="hero-copy-block">
+        <p class="eyebrow">Route Weather Studio</p>
+        <h1>Better route planning, cleaner directions, and weather every 30 minutes.</h1>
+        <p class="hero-copy">
+          Type addresses with live suggestions, set when you leave, and get a map-first trip plan that follows the forecast
+          city by city as you move down the road.
+        </p>
+      </div>
+      <div class="hero-callout">
+        <span class="hero-pill">Live address suggestions</span>
+        <span class="hero-pill">Turn-by-turn directions</span>
+        <span class="hero-pill">30-minute weather checkpoints</span>
+      </div>
     </header>
 
     <main class="layout">
-      <section class="panel panel-form">
+      <aside class="panel panel-form">
+        <div class="panel-intro">
+          <p class="eyebrow">Trip Setup</p>
+          <h2>Build your route</h2>
+          <p>Search real places, adjust departure time, and choose whether you want the directions panel shown.</p>
+        </div>
+
         <form id="trip-form" class="trip-form">
           <div class="field autocomplete-field" data-autocomplete="source">
             <div class="field-head">
-              <label for="source">Starting point</label>
-              <span class="field-tag">Autocomplete</span>
+              <label for="source">Starting address</label>
+              <span class="field-tag">Live</span>
             </div>
             <div class="input-stack">
-              <input id="source" name="source" type="text" placeholder="Boston, MA" autocomplete="off" required>
+              <input id="source" name="source" type="text" placeholder="350 5th Ave, New York, NY" autocomplete="off" required>
               <div id="sourceSuggestions" class="suggestions" hidden></div>
             </div>
           </div>
 
+          <button id="swapTrip" class="swap-button" type="button" aria-label="Swap starting point and destination">
+            <span>Swap route</span>
+          </button>
+
           <div class="field autocomplete-field" data-autocomplete="destination">
             <div class="field-head">
-              <label for="destination">Destination</label>
-              <span class="field-tag">Autocomplete</span>
+              <label for="destination">Destination address</label>
+              <span class="field-tag">Live</span>
             </div>
             <div class="input-stack">
-              <input id="destination" name="destination" type="text" placeholder="Portland, ME" autocomplete="off" required>
+              <input id="destination" name="destination" type="text" placeholder="1 Washington Sq, San Jose, CA" autocomplete="off" required>
               <div id="destinationSuggestions" class="suggestions" hidden></div>
             </div>
-          </div>
-
-          <div class="inline-actions">
-            <button id="swapTrip" class="ghost-button" type="button">Swap route</button>
           </div>
 
           <div class="field-row">
@@ -71,86 +84,83 @@
             </div>
           </div>
 
-          <div class="field-row">
-            <div class="field">
-              <label for="spacing">Checkpoint spacing</label>
-              <select id="spacing" name="spacing">
-                <option value="30">About every 30 minutes</option>
-                <option value="60" selected>About every hour</option>
-                <option value="90">About every 90 minutes</option>
-                <option value="120">About every 2 hours</option>
-              </select>
-            </div>
-
-            <div class="field">
-              <label for="density">Checkpoint count</label>
-              <select id="density" name="density">
-                <option value="balanced" selected>Balanced</option>
-                <option value="compact">Compact</option>
-                <option value="detailed">Detailed</option>
-              </select>
-            </div>
+          <div class="quick-times" aria-label="Quick departure choices">
+            <button class="quick-time" type="button" data-departure-shift="30">Leave in 30 min</button>
+            <button class="quick-time" type="button" data-departure-shift="120">Leave in 2 hr</button>
+            <button class="quick-time" type="button" data-departure-preset="tomorrow-8">Tomorrow 8 AM</button>
           </div>
 
           <label class="toggle-card">
             <input id="showDirections" name="showDirections" type="checkbox" checked>
             <span class="toggle-copy">
-              <strong>Include turn-by-turn directions</strong>
-              <small>Show actual route steps alongside the weather timeline.</small>
+              <strong>Show actual directions</strong>
+              <small>Keep a dedicated turn-by-turn directions panel beside the forecast timeline.</small>
             </span>
           </label>
 
-          <button id="submitButton" class="submit-button" type="submit">Plan trip weather</button>
-        </form>
+          <div class="planner-note">
+            <strong>Sampling:</strong> weather checkpoints are placed automatically every 30 minutes along the route.
+          </div>
 
-        <div class="hint-card">
-          <h2>What you get</h2>
-          <p>Interactive map layers, clickable checkpoints, nearby-city labels, and turn-by-turn route steps. Forecasts come from Open-Meteo, routing from OSRM, and map tiles from OpenStreetMap.</p>
-        </div>
-      </section>
+          <button id="submitButton" class="submit-button" type="submit">Build trip forecast</button>
+        </form>
+      </aside>
 
       <section class="panel panel-results">
         <div class="results-header">
           <div>
-            <p class="eyebrow">Route View</p>
+            <p class="eyebrow">Trip Board</p>
             <h2 id="resultsTitle">Plan a route to light up the map.</h2>
           </div>
           <div id="statusBadge" class="status-badge idle">Ready</div>
         </div>
 
         <div id="summary" class="summary empty">
-          <p>Your trip summary will appear here.</p>
+          <p>Your route summary will appear here.</p>
         </div>
 
         <section class="map-stage">
-          <div class="map-toolbar">
-            <button id="recenterMap" class="chip-button" type="button">Recenter route</button>
-            <button id="toggleMarkers" class="chip-button" type="button">Hide checkpoints</button>
-            <button id="jumpToDirections" class="chip-button" type="button">Open directions</button>
+          <div class="map-shell">
+            <div class="map-toolbar">
+              <button id="recenterMap" class="chip-button" type="button">Recenter</button>
+              <button id="toggleMarkers" class="chip-button" type="button">Hide checkpoints</button>
+              <button id="jumpToDirections" class="chip-button" type="button">Jump to directions</button>
+            </div>
+            <div id="mapEmpty" class="map-empty">
+              <h3>Map ready for your route</h3>
+              <p>Once you choose addresses, the trip path, weather cities, and direction focus points will show here.</p>
+            </div>
+            <div id="map"></div>
+            <div id="mapLegend" class="mapLegend map-legend empty">
+              <span>Route details and forecast highlights will appear here.</span>
+            </div>
           </div>
-          <div id="mapEmpty" class="map-empty">
-            <h3>Map ready for a trip</h3>
-            <p>Type addresses, choose a departure time, and the route weather will draw here.</p>
-          </div>
-          <div id="map"></div>
-          <div id="mapLegend" class="map-legend empty">
-            <span>Route overlays and weather stops will appear here.</span>
-          </div>
+
+          <aside class="map-sidecard">
+            <p class="eyebrow">At A Glance</p>
+            <h3>What this trip board shows</h3>
+            <ul class="feature-list">
+              <li>Address suggestions while you type.</li>
+              <li>Weather stops every 30 minutes.</li>
+              <li>Clickable forecast cities on the route.</li>
+              <li>Turn-by-turn directions tied to the same route.</li>
+            </ul>
+          </aside>
         </section>
 
-        <div class="route-panels">
+        <section class="content-grid">
           <section class="subpanel">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Every Few Cities</p>
-                <h3>Weather along the way</h3>
+                <p class="eyebrow">Forecast Route</p>
+                <h3>Weather city by city</h3>
               </div>
+              <p class="section-note">Every 30 minutes</p>
             </div>
-
             <div id="timeline" class="timeline empty">
               <div class="empty-state">
                 <h3>No route yet</h3>
-                <p>Start with a source, destination, and departure time to build a weather-aware travel plan.</p>
+                <p>Start with two addresses and a departure time to build your live route forecast.</p>
               </div>
             </div>
           </section>
@@ -158,19 +168,19 @@
           <section id="directionsSection" class="subpanel directions-section">
             <div class="section-heading">
               <div>
-                <p class="eyebrow">Turn By Turn</p>
-                <h3>Actual directions</h3>
+                <p class="eyebrow">Directions</p>
+                <h3>Actual turn-by-turn steps</h3>
               </div>
+              <p class="section-note">Tap a step to focus it on the map</p>
             </div>
-
             <div id="directionsList" class="directions-list empty">
               <div class="empty-state compact">
                 <h3>Directions waiting</h3>
-                <p>Keep the directions option on to see route steps after planning a trip.</p>
+                <p>Build a route to see the step list here.</p>
               </div>
             </div>
           </section>
-        </div>
+        </section>
 
         <div id="notice" class="notice" aria-live="polite"></div>
       </section>
