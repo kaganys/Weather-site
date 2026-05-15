@@ -87,6 +87,21 @@
             </div>
           </div>
 
+          <div class="field-row">
+            <div class="field">
+              <label for="units">Units</label>
+              <select id="units" name="units">
+                <option value="imperial" selected>Imperial</option>
+                <option value="metric">Metric</option>
+              </select>
+            </div>
+
+            <div class="field">
+              <label for="tripNotes">Trip notes</label>
+              <textarea id="tripNotes" name="tripNotes" rows="3" placeholder="Shabbos stop, food, pickup, gear, or route notes"></textarea>
+            </div>
+          </div>
+
           <div class="quick-times" aria-label="Quick departure choices">
             <button class="quick-time" type="button" data-departure-shift="30">Leave in 30 min</button>
             <button class="quick-time" type="button" data-departure-shift="120">Leave in 2 hr</button>
@@ -107,6 +122,19 @@
 
           <button id="submitButton" class="submit-button" type="submit">Build trip forecast</button>
         </form>
+
+        <section class="recent-panel">
+          <div class="section-heading section-heading-tight">
+            <div>
+              <p class="eyebrow">Saved</p>
+              <h3>Recent trips</h3>
+            </div>
+            <button id="clearRecentTrips" class="mini-chip" type="button">Clear</button>
+          </div>
+          <div id="recentTrips" class="recent-trips empty">
+            <p>Recent trips you plan will show up here.</p>
+          </div>
+        </section>
       </aside>
 
       <section class="panel panel-results">
@@ -122,12 +150,20 @@
           <p>Your route summary will appear here.</p>
         </div>
 
+        <div class="summary-actions">
+          <button id="copySummary" class="chip-button" type="button">Copy summary</button>
+          <button id="copyShareLink" class="chip-button" type="button">Copy share link</button>
+          <button id="exportTrip" class="chip-button" type="button">Export trip</button>
+          <button id="printTrip" class="chip-button" type="button">Print plan</button>
+        </div>
+
         <section class="map-stage">
           <div class="map-shell">
             <div class="map-toolbar">
               <button id="recenterMap" class="chip-button" type="button">Recenter</button>
               <button id="toggleMarkers" class="chip-button" type="button">Hide checkpoints</button>
               <button id="toggleSynagogues" class="chip-button" type="button">Hide Orthodox shuls</button>
+              <button id="fullscreenMap" class="chip-button" type="button">Fullscreen map</button>
               <a id="openGoDaven" class="chip-button chip-link" href="https://www.godaven.com/" target="_blank" rel="noreferrer">Open GoDaven</a>
               <button id="jumpToDirections" class="chip-button" type="button">Jump to directions</button>
             </div>
@@ -181,6 +217,13 @@
             </div>
             <div id="directionsOverview" class="directions-overview empty">
               <p>Build a route to see the full directions overview.</p>
+            </div>
+            <div class="directions-controls">
+              <input id="directionFilter" type="text" placeholder="Filter direction steps">
+              <label class="mini-toggle">
+                <input id="majorStepsOnly" type="checkbox">
+                <span>Major steps only</span>
+              </label>
             </div>
             <div id="directionsList" class="directions-list empty">
               <div class="empty-state compact">

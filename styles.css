@@ -240,12 +240,14 @@ body::before {
 
 input,
 select,
+textarea,
 button {
   font: inherit;
 }
 
 input,
-select {
+select,
+textarea {
   width: 100%;
   padding: 15px 16px;
   border: 1px solid var(--line);
@@ -256,12 +258,18 @@ select {
 }
 
 input:focus,
-select:focus {
+select:focus,
+textarea:focus {
   outline: none;
   transform: translateY(-1px);
   border-color: rgba(11, 139, 119, 0.5);
   box-shadow: 0 12px 26px rgba(11, 139, 119, 0.1);
   background: rgba(255, 255, 255, 0.98);
+}
+
+textarea {
+  resize: vertical;
+  min-height: 88px;
 }
 
 .input-stack {
@@ -427,6 +435,60 @@ select:focus {
   line-height: 1.55;
 }
 
+.recent-panel {
+  display: grid;
+  gap: 14px;
+  margin-top: 20px;
+  padding: 18px;
+  border: 1px solid rgba(20, 36, 50, 0.08);
+  border-radius: 24px;
+  background: rgba(255, 255, 255, 0.68);
+}
+
+.section-heading-tight h3 {
+  font-size: 1.55rem;
+}
+
+.recent-trips {
+  display: grid;
+  gap: 10px;
+}
+
+.recent-trips.empty {
+  color: var(--muted);
+}
+
+.recent-trip {
+  display: grid;
+  gap: 6px;
+  width: 100%;
+  padding: 13px 14px;
+  border: 1px solid rgba(20, 36, 50, 0.08);
+  border-radius: 18px;
+  background: rgba(245, 248, 249, 0.92);
+  text-align: left;
+  cursor: pointer;
+  transition: transform 150ms ease, border-color 150ms ease, background 150ms ease;
+}
+
+.recent-trip:hover,
+.recent-trip:focus-visible {
+  outline: none;
+  transform: translateY(-1px);
+  border-color: rgba(11, 139, 119, 0.22);
+  background: rgba(255, 255, 255, 0.95);
+}
+
+.recent-trip strong {
+  font-size: 0.95rem;
+}
+
+.recent-trip span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
+}
+
 .submit-button {
   border: 0;
   border-radius: 999px;
@@ -525,6 +587,79 @@ select:focus {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+}
+
+.summary-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 14px;
+}
+
+.summary-progress {
+  display: grid;
+  gap: 10px;
+}
+
+.progress-track {
+  position: relative;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 18px;
+}
+
+.progress-line {
+  position: absolute;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  border-radius: 999px;
+  background: linear-gradient(90deg, rgba(11, 139, 119, 0.22), rgba(230, 143, 47, 0.36));
+}
+
+.progress-stop {
+  position: relative;
+  z-index: 1;
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid white;
+  background: linear-gradient(135deg, #0b8b77, #e68f2f);
+  box-shadow: 0 6px 12px rgba(20, 36, 50, 0.12);
+}
+
+.comparison-panel {
+  display: grid;
+  gap: 12px;
+  margin-top: 18px;
+  padding: 16px;
+  border-radius: 22px;
+  border: 1px solid rgba(20, 36, 50, 0.08);
+  background: rgba(255, 255, 255, 0.72);
+}
+
+.comparison-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.comparison-card {
+  padding: 14px;
+  border-radius: 16px;
+  background: rgba(245, 248, 249, 0.92);
+}
+
+.comparison-card strong,
+.comparison-card span {
+  display: block;
+}
+
+.comparison-card span {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.45;
 }
 
 .summary-stat {
@@ -727,6 +862,33 @@ select:focus {
   gap: 10px;
 }
 
+.directions-controls {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px;
+  margin-top: 14px;
+}
+
+.mini-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 14px;
+  border-radius: 16px;
+  border: 1px solid rgba(20, 36, 50, 0.08);
+  background: rgba(255, 255, 255, 0.8);
+}
+
+.mini-toggle input {
+  width: 16px;
+  height: 16px;
+  accent-color: var(--accent);
+}
+
+.mini-toggle span {
+  white-space: nowrap;
+}
+
 .directions-link {
   display: inline-flex;
   align-items: center;
@@ -904,6 +1066,11 @@ select:focus {
   font-weight: 500;
 }
 
+.chip-button.is-active {
+  background: rgba(219, 244, 238, 0.98);
+  border-color: rgba(11, 139, 119, 0.28);
+}
+
 .empty-state {
   padding: 28px 22px;
   border-radius: 22px;
@@ -1003,6 +1170,10 @@ select:focus {
   .summary-grid {
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
+
+  .comparison-grid {
+    grid-template-columns: 1fr;
+  }
 }
 
 @media (max-width: 760px) {
@@ -1033,9 +1204,14 @@ select:focus {
   .map-toolbar,
   .map-legend,
   .directions-actions,
-  .field-actions {
+  .field-actions,
+  .summary-actions {
     flex-direction: column;
     align-items: stretch;
+  }
+
+  .directions-controls {
+    grid-template-columns: 1fr;
   }
 
   .map-toolbar,

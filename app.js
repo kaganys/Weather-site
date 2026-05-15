@@ -5,6 +5,8 @@ const sourceSuggestions = document.getElementById("sourceSuggestions");
 const destinationSuggestions = document.getElementById("destinationSuggestions");
 const departureTimeInput = document.getElementById("departureTime");
 const profileInput = document.getElementById("profile");
+const unitsInput = document.getElementById("units");
+const tripNotesInput = document.getElementById("tripNotes");
 const showDirectionsInput = document.getElementById("showDirections");
 const useMyLocationButton = document.getElementById("useMyLocation");
 const submitButton = document.getElementById("submitButton");
@@ -12,13 +14,22 @@ const swapTripButton = document.getElementById("swapTrip");
 const recenterMapButton = document.getElementById("recenterMap");
 const toggleMarkersButton = document.getElementById("toggleMarkers");
 const toggleSynagoguesButton = document.getElementById("toggleSynagogues");
+const fullscreenMapButton = document.getElementById("fullscreenMap");
 const jumpToDirectionsButton = document.getElementById("jumpToDirections");
+const copySummaryButton = document.getElementById("copySummary");
+const copyShareLinkButton = document.getElementById("copyShareLink");
+const exportTripButton = document.getElementById("exportTrip");
+const printTripButton = document.getElementById("printTrip");
+const clearRecentTripsButton = document.getElementById("clearRecentTrips");
 const resultsTitle = document.getElementById("resultsTitle");
 const summary = document.getElementById("summary");
+const recentTrips = document.getElementById("recentTrips");
 const timeline = document.getElementById("timeline");
 const directionsList = document.getElementById("directionsList");
 const directionsOverview = document.getElementById("directionsOverview");
 const directionsSection = document.getElementById("directionsSection");
+const directionFilterInput = document.getElementById("directionFilter");
+const majorStepsOnlyInput = document.getElementById("majorStepsOnly");
 const notice = document.getElementById("notice");
 const statusBadge = document.getElementById("statusBadge");
 const mapEmpty = document.getElementById("mapEmpty");
@@ -61,6 +72,10 @@ const WEATHER_CODES = {
 const CHECKPOINT_INTERVAL_MINUTES = 30;
 const FORECAST_HOURS_LIMIT = 16 * 24;
 const AUTOCOMPLETE_MINIMUM = 3;
+const STORAGE_KEYS = {
+  recentTrips: "routeWeatherRecentTripsV2",
+  preferences: "routeWeatherPreferencesV2"
+};
 
 const state = {
   selectedPlaces: {
@@ -92,6 +107,12 @@ const state = {
   synagogueFetchTimer: null,
   synagogueFetchController: null,
   synagogueMarkersCount: 0,
+  recentTrips: [],
+  preferences: {
+    units: "imperial",
+    directionFilter: "",
+    majorStepsOnly: false
+  },
   checkpointMarkersById: new Map(),
   routeData: null
 };
@@ -99,6 +120,10 @@ const state = {
 initialize();
 
 function initialize() {
+  loadPreferences();
+  applyPreferencesToInputs();
+  loadRecentTrips();
+  renderRecentTrips();
   departureTimeInput.value = toLocalInputValue(new Date(Date.now() + 30 * 60 * 1000));
   initializeMap();
   bindAutocomplete("source", sourceInput, sourceSuggestions);
@@ -107,13 +132,91 @@ function initialize() {
   form.addEventListener("submit", handleSubmit);
   showDirectionsInput.addEventListener("change", updateDirectionsVisibility);
   useMyLocationButton.addEventListener("click", handleUseMyLocation);
+  unitsInput.addEventListener("change", handleUnitsChange);
   swapTripButton.addEventListener("click", handleSwapTrip);
   recenterMapButton.addEventListener("click", recenterMapToRoute);
   toggleMarkersButton.addEventListener("click", handleToggleMarkers);
   toggleSynagoguesButton.addEventListener("click", handleToggleSynagogues);
+  fullscreenMapButton.addEventListener("click", handleFullscreenMap);
   jumpToDirectionsButton.addEventListener("click", handleJumpToDirections);
+  copySummaryButton.addEventListener("click", handleCopySummary);
+  copyShareLinkButton.addEventListener("click", handleCopyShareLink);
+  exportTripButton.addEventListener("click", handleExportTrip);
+  printTripButton.addEventListener("click", handlePrintTrip);
+  clearRecentTripsButton.addEventListener("click", handleClearRecentTrips);
+  directionFilterInput.addEventListener("input", handleDirectionPreferencesChange);
+  majorStepsOnlyInput.addEventListener("change", handleDirectionPreferencesChange);
   document.addEventListener("click", handleDocumentClick);
+  document.addEventListener("keydown", handleGlobalKeydown);
+  document.addEventListener("fullscreenchange", () => {
+    fullscreenMapButton.classList.toggle("is-active", Boolean(document.fullscreenElement));
+    window.setTimeout(() => state.map?.invalidateSize(), 150);
+  });
   updateDirectionsVisibility();
+  restoreTripFromUrl();
+}
+
+function loadPreferences() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.preferences) || "{}");
+    state.preferences.units = saved.units === "metric" ? "metric" : "imperial";
+    state.preferences.directionFilter = typeof saved.directionFilter === "string" ? saved.directionFilter : "";
+    state.preferences.majorStepsOnly = Boolean(saved.majorStepsOnly);
+  } catch {
+    state.preferences.units = "imperial";
+    state.preferences.directionFilter = "";
+    state.preferences.majorStepsOnly = false;
+  }
+}
+
+function savePreferences() {
+  localStorage.setItem(STORAGE_KEYS.preferences, JSON.stringify(state.preferences));
+}
+
+function applyPreferencesToInputs() {
+  unitsInput.value = state.preferences.units;
+  directionFilterInput.value = state.preferences.directionFilter;
+  majorStepsOnlyInput.checked = state.preferences.majorStepsOnly;
+}
+
+function loadRecentTrips() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEYS.recentTrips) || "[]");
+    state.recentTrips = Array.isArray(saved) ? saved.slice(0, 6) : [];
+  } catch {
+    state.recentTrips = [];
+  }
+}
+
+function saveRecentTrips() {
+  localStorage.setItem(STORAGE_KEYS.recentTrips, JSON.stringify(state.recentTrips.slice(0, 6)));
+}
+
+function renderRecentTrips() {
+  recentTrips.innerHTML = "";
+
+  if (!state.recentTrips.length) {
+    recentTrips.classList.add("empty");
+    recentTrips.innerHTML = "<p>Recent trips you plan will show up here.</p>";
+    return;
+  }
+
+  recentTrips.classList.remove("empty");
+
+  state.recentTrips.forEach((trip, index) => {
+    const button = document.createElement("button");
+    button.type = "button";
+    button.className = "recent-trip";
+    button.innerHTML = `
+      <strong>${escapeHtml(trip.sourceShort)} to ${escapeHtml(trip.destinationShort)}</strong>
+      <span>${escapeHtml(formatSavedTripDate(trip.departureTime))} • ${escapeHtml(capitalize(trip.profile))}</span>
+    `;
+    button.addEventListener("click", () => {
+      applySavedTrip(trip);
+      renderNotice(`Loaded recent trip ${index + 1}.`);
+    });
+    recentTrips.appendChild(button);
+  });
 }
 
 function initializeMap() {
@@ -370,6 +473,7 @@ async function handleSubmit(event) {
   event.preventDefault();
 
   const departureDate = new Date(departureTimeInput.value);
+  const notes = tripNotesInput.value.trim();
 
   if (Number.isNaN(departureDate.getTime())) {
     renderError("Please choose a valid departure time.");
@@ -405,17 +509,28 @@ async function handleSubmit(event) {
     );
 
     const labeledCheckpoints = applyCheckpointLabels(checkpointEntries, sourcePlace, destinationPlace);
+    const [departureSun, arrivalSun] = await Promise.all([
+      loadSunData(sourcePlace, departureDate),
+      loadSunData(destinationPlace, checkpoints.at(-1).eta)
+    ]);
     const tripData = {
       sourcePlace,
       destinationPlace,
       route,
       departureDate,
+      notes,
+      sunData: {
+        departure: departureSun,
+        arrival: arrivalSun
+      },
       checkpoints: labeledCheckpoints,
       directions: route.directions
     };
 
     state.routeData = tripData;
     renderTrip(tripData);
+    saveTripToRecents(tripData);
+    updateUrlFromTrip(tripData);
     setStatus("success", "Ready");
   } catch (error) {
     renderError(error.message || "Something went wrong while building the route.");
@@ -484,6 +599,29 @@ async function reverseGeocodeFullPlace(latitude, longitude) {
 
   const place = await response.json();
   return normalizeNominatimPlace(place);
+}
+
+async function loadSunData(place, date) {
+  const url = new URL("https://api.open-meteo.com/v1/forecast");
+  url.searchParams.set("latitude", String(place.latitude));
+  url.searchParams.set("longitude", String(place.longitude));
+  url.searchParams.set("daily", "sunrise,sunset");
+  url.searchParams.set("timezone", "GMT");
+  url.searchParams.set("timeformat", "unixtime");
+  url.searchParams.set("forecast_days", "16");
+
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error("Could not load sunrise and sunset times.");
+  }
+
+  const data = await response.json();
+  const index = findNearestDayIndex(data.daily.time, date);
+
+  return {
+    sunrise: new Date(data.daily.sunrise[index] * 1000),
+    sunset: new Date(data.daily.sunset[index] * 1000)
+  };
 }
 
 function normalizeNominatimPlace(place) {
@@ -729,6 +867,7 @@ async function loadCheckpointWeather(checkpoint) {
   return {
     ...checkpoint,
     forecastTime: new Date(hourly.time[targetIndex] * 1000),
+    weatherCode: hourly.weather_code[targetIndex],
     weatherLabel: WEATHER_CODES[hourly.weather_code[targetIndex]] || "Unknown conditions",
     temperature: Math.round(hourly.temperature_2m[targetIndex]),
     precipitationProbability: Math.round(hourly.precipitation_probability[targetIndex]),
@@ -752,11 +891,26 @@ function findNearestHourIndex(hourlyTimestamps, targetDate) {
   return bestDifference <= 90 * 60 * 1000 ? bestIndex : -1;
 }
 
+function findNearestDayIndex(dayTimestamps, targetDate) {
+  let bestIndex = 0;
+  let bestDifference = Number.POSITIVE_INFINITY;
+
+  for (let index = 0; index < dayTimestamps.length; index += 1) {
+    const difference = Math.abs(dayTimestamps[index] * 1000 - targetDate.getTime());
+    if (difference < bestDifference) {
+      bestDifference = difference;
+      bestIndex = index;
+    }
+  }
+
+  return bestIndex;
+}
+
 function renderTrip(tripData) {
   const { sourcePlace, destinationPlace, route, departureDate, checkpoints, directions } = tripData;
 
   resultsTitle.textContent = `${sourcePlace.shortName} to ${destinationPlace.shortName}`;
-  renderSummary(sourcePlace, destinationPlace, route, departureDate, checkpoints, directions);
+  renderSummary(tripData);
   renderTimeline(checkpoints);
   renderDirections(tripData);
   renderMap(sourcePlace, destinationPlace, route, checkpoints);
@@ -775,16 +929,27 @@ function renderTrip(tripData) {
   );
 }
 
-function renderSummary(sourcePlace, destinationPlace, route, departureDate, checkpoints, directions) {
+function renderSummary(tripData) {
+  const { sourcePlace, destinationPlace, route, departureDate, checkpoints, directions, notes, sunData } = tripData;
   const arrivalDate = checkpoints.at(-1).eta;
-  const distanceMiles = Math.round(route.distanceMeters * 0.000621371);
   const coldestPoint = [...checkpoints].sort((left, right) => left.temperature - right.temperature)[0];
   const warmestPoint = [...checkpoints].sort((left, right) => right.temperature - left.temperature)[0];
+  const averageSpeed = route.distanceMeters / route.durationSeconds;
+  const routeRisk = getRouteRisk(checkpoints);
+  const arrivalLight = describeLightCondition(arrivalDate, sunData.arrival);
+  const progressMarkup = buildProgressMarkup(checkpoints);
 
   summary.classList.remove("empty");
   summary.innerHTML = `
     <p class="summary-route">Leaving <strong>${escapeHtml(sourcePlace.label)}</strong> at <strong>${formatDateTime(departureDate)}</strong> and heading to <strong>${escapeHtml(destinationPlace.label)}</strong>.</p>
     <p class="summary-subcopy">Weather is sampled every 30 minutes along the route, then labeled with nearby cities whenever possible.</p>
+    <div class="summary-progress">
+      <div class="progress-track">
+        <span class="progress-line"></span>
+        ${progressMarkup}
+      </div>
+      <p class="summary-subcopy">${checkpoints.length} weather checkpoints placed across the route.</p>
+    </div>
     <div class="summary-grid">
       <div class="summary-stat">
         <span class="label">Estimated trip</span>
@@ -792,7 +957,7 @@ function renderSummary(sourcePlace, destinationPlace, route, departureDate, chec
       </div>
       <div class="summary-stat">
         <span class="label">Distance</span>
-        <span class="value">${distanceMiles} mi</span>
+        <span class="value">${formatDistanceFromMeters(route.distanceMeters)}</span>
       </div>
       <div class="summary-stat">
         <span class="label">Arrival</span>
@@ -808,11 +973,11 @@ function renderSummary(sourcePlace, destinationPlace, route, departureDate, chec
       </div>
       <div class="summary-stat">
         <span class="label">Coldest point</span>
-        <span class="value">${coldestPoint.temperature}F near ${escapeHtml(coldestPoint.cityName)}</span>
+        <span class="value">${formatTemperature(coldestPoint.temperature)} near ${escapeHtml(coldestPoint.cityName)}</span>
       </div>
       <div class="summary-stat">
         <span class="label">Warmest point</span>
-        <span class="value">${warmestPoint.temperature}F near ${escapeHtml(warmestPoint.cityName)}</span>
+        <span class="value">${formatTemperature(warmestPoint.temperature)} near ${escapeHtml(warmestPoint.cityName)}</span>
       </div>
       <div class="summary-stat">
         <span class="label">Travel mode</span>
@@ -824,9 +989,30 @@ function renderSummary(sourcePlace, destinationPlace, route, departureDate, chec
       </div>
       <div class="summary-stat">
         <span class="label">Forecast spread</span>
-        <span class="value">${coldestPoint.temperature}F to ${warmestPoint.temperature}F</span>
+        <span class="value">${formatTemperature(coldestPoint.temperature)} to ${formatTemperature(warmestPoint.temperature)}</span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Average speed</span>
+        <span class="value">${formatSpeedFromMetersPerSecond(averageSpeed)}</span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Weather risk</span>
+        <span class="value">${escapeHtml(routeRisk.label)}</span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Sunrise at start</span>
+        <span class="value">${formatTime(sunData.departure.sunrise)}</span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Sunset at arrival</span>
+        <span class="value">${formatTime(sunData.arrival.sunset)}</span>
+      </div>
+      <div class="summary-stat">
+        <span class="label">Arrival light</span>
+        <span class="value">${escapeHtml(arrivalLight)}</span>
       </div>
     </div>
+    ${notes ? `<p class="summary-subcopy"><strong>Notes:</strong> ${escapeHtml(notes)}</p>` : ""}
   `;
 }
 
@@ -840,8 +1026,8 @@ function renderTimeline(checkpoints) {
     card.dataset.checkpointId = checkpoint.id;
     fragment.querySelector(".checkpoint-label").textContent = checkpoint.label;
     fragment.querySelector(".eta-text").textContent = `${formatDateTime(checkpoint.eta)} • +${checkpoint.elapsedMinutes} min`;
-    fragment.querySelector(".weather-main").textContent = `${checkpoint.weatherLabel} • ${checkpoint.temperature}F`;
-    fragment.querySelector(".weather-meta").textContent = `${checkpoint.precipitationProbability}% precip • ${checkpoint.windSpeed} mph wind`;
+    fragment.querySelector(".weather-main").textContent = `${checkpoint.weatherLabel} • ${formatTemperature(checkpoint.temperature)}`;
+    fragment.querySelector(".weather-meta").textContent = `${checkpoint.precipitationProbability}% precip • ${formatWind(checkpoint.windSpeed)}`;
 
     card.addEventListener("click", () => focusCheckpoint(checkpoint.id));
     timeline.appendChild(fragment);
@@ -864,7 +1050,19 @@ function renderDirections(tripData) {
     return;
   }
 
-  directions.forEach((direction) => {
+  const filteredDirections = getVisibleDirections(directions);
+
+  if (!filteredDirections.length) {
+    directionsList.innerHTML = `
+      <div class="empty-state compact">
+        <h3>No matching steps</h3>
+        <p>Try clearing the filter or turning off major-steps-only.</p>
+      </div>
+    `;
+    return;
+  }
+
+  filteredDirections.forEach((direction) => {
     const fragment = directionStepTemplate.content.cloneNode(true);
     const button = fragment.querySelector(".direction-step");
     button.dataset.directionIndex = String(direction.index);
@@ -883,14 +1081,16 @@ function renderDirectionsOverview(sourcePlace, destinationPlace, route, directio
   directionsOverview.classList.remove("empty");
   const googleMapsUrl = buildGoogleMapsUrl(sourcePlace, destinationPlace);
   const openStreetMapUrl = buildOpenStreetMapDirectionsUrl(sourcePlace, destinationPlace);
+  const wazeUrl = buildWazeUrl(destinationPlace);
 
   directionsOverview.innerHTML = `
     <p><strong>From:</strong> ${escapeHtml(sourcePlace.label)}</p>
     <p><strong>To:</strong> ${escapeHtml(destinationPlace.label)}</p>
-    <p><strong>Route:</strong> ${escapeHtml(formatDuration(route.durationSeconds))} • ${escapeHtml(String(Math.round(route.distanceMeters * 0.000621371)))} mi • ${escapeHtml(String(directions.length))} steps</p>
+    <p><strong>Route:</strong> ${escapeHtml(formatDuration(route.durationSeconds))} • ${escapeHtml(formatDistanceFromMeters(route.distanceMeters))} • ${escapeHtml(String(directions.length))} steps</p>
     <div class="directions-actions">
       <a class="directions-link" href="${escapeHtml(googleMapsUrl)}" target="_blank" rel="noreferrer">Open in Google Maps</a>
       <a class="directions-link" href="${escapeHtml(openStreetMapUrl)}" target="_blank" rel="noreferrer">Open in OpenStreetMap</a>
+      <a class="directions-link" href="${escapeHtml(wazeUrl)}" target="_blank" rel="noreferrer">Open in Waze</a>
     </div>
   `;
 }
@@ -935,7 +1135,7 @@ function renderMapLegend(route, checkpoints) {
   mapLegend.classList.remove("empty");
   mapLegend.innerHTML = `
     <span class="legend-chip">${capitalize(profileInput.value)}</span>
-    <span class="legend-chip">${Math.round(route.distanceMeters * 0.000621371)} miles</span>
+    <span class="legend-chip">${formatDistanceFromMeters(route.distanceMeters)}</span>
     <span class="legend-chip">${checkpoints.length} half-hour weather stops</span>
     <span class="legend-chip">${synagogueText}</span>
     <span class="legend-chip">Wettest near ${escapeHtml(wettestCheckpoint.cityName)}</span>
@@ -1007,8 +1207,8 @@ function buildCheckpointPopup(checkpoint) {
     <div class="popup-card">
       <strong>${escapeHtml(checkpoint.label)}</strong>
       <span>${escapeHtml(formatDateTime(checkpoint.eta))}</span>
-      <span>${escapeHtml(`${checkpoint.weatherLabel} • ${checkpoint.temperature}F`)}</span>
-      <span>${escapeHtml(`${checkpoint.precipitationProbability}% precip • ${checkpoint.windSpeed} mph wind`)}</span>
+      <span>${escapeHtml(`${checkpoint.weatherLabel} • ${formatTemperature(checkpoint.temperature)}`)}</span>
+      <span>${escapeHtml(`${checkpoint.precipitationProbability}% precip • ${formatWind(checkpoint.windSpeed)}`)}</span>
     </div>
   `;
 }
@@ -1111,6 +1311,206 @@ function handleJumpToDirections() {
 
 function updateDirectionsVisibility() {
   directionsSection.classList.toggle("is-hidden", !showDirectionsInput.checked);
+}
+
+function handleUnitsChange() {
+  state.preferences.units = unitsInput.value === "metric" ? "metric" : "imperial";
+  savePreferences();
+  rerenderCurrentTrip();
+  if (state.routeData) {
+    updateUrlFromTrip(state.routeData);
+  }
+}
+
+function handleDirectionPreferencesChange() {
+  state.preferences.directionFilter = directionFilterInput.value.trim();
+  state.preferences.majorStepsOnly = majorStepsOnlyInput.checked;
+  savePreferences();
+  if (state.routeData) {
+    renderDirections(state.routeData);
+  }
+}
+
+function handleFullscreenMap() {
+  const mapShell = document.querySelector(".map-shell");
+  if (!mapShell) {
+    return;
+  }
+
+  if (document.fullscreenElement) {
+    void document.exitFullscreen();
+    fullscreenMapButton.classList.remove("is-active");
+    return;
+  }
+
+  void mapShell.requestFullscreen();
+  fullscreenMapButton.classList.add("is-active");
+}
+
+async function handleCopySummary() {
+  if (!state.routeData) {
+    renderNotice("Plan a route first so there is something to copy.");
+    return;
+  }
+
+  const copied = await copyText(buildTripSummaryText(state.routeData));
+  renderNotice(copied ? "Trip summary copied." : "Could not copy automatically. Try export instead.");
+}
+
+async function handleCopyShareLink() {
+  if (!state.routeData) {
+    renderNotice("Plan a route first so there is a share link.");
+    return;
+  }
+
+  const shareUrl = getTripShareUrl(state.routeData);
+  const copied = await copyText(shareUrl);
+  renderNotice(copied ? "Share link copied." : "Could not copy automatically. You can still export the trip.");
+}
+
+function handleExportTrip() {
+  if (!state.routeData) {
+    renderNotice("Plan a route first so there is something to export.");
+    return;
+  }
+
+  const text = buildTripSummaryText(state.routeData, true);
+  downloadTextFile(`trip-plan-${Date.now()}.txt`, text);
+  renderNotice("Trip itinerary exported.");
+}
+
+function handlePrintTrip() {
+  if (!state.routeData) {
+    renderNotice("Plan a route first so there is something to print.");
+    return;
+  }
+
+  window.print();
+}
+
+function handleClearRecentTrips() {
+  state.recentTrips = [];
+  saveRecentTrips();
+  renderRecentTrips();
+  renderNotice("Recent trips cleared.");
+}
+
+function handleGlobalKeydown(event) {
+  if (event.key === "/" && document.activeElement?.tagName !== "INPUT" && document.activeElement?.tagName !== "TEXTAREA") {
+    event.preventDefault();
+    sourceInput.focus();
+  }
+}
+
+function rerenderCurrentTrip() {
+  if (!state.routeData) {
+    return;
+  }
+
+  renderSummary(state.routeData);
+  renderTimeline(state.routeData.checkpoints);
+  renderDirections(state.routeData);
+  renderMapLegend(state.routeData.route, state.routeData.checkpoints);
+}
+
+function saveTripToRecents(tripData) {
+  const entry = {
+    source: tripData.sourcePlace.label,
+    destination: tripData.destinationPlace.label,
+    sourceShort: tripData.sourcePlace.shortName,
+    destinationShort: tripData.destinationPlace.shortName,
+    departureTime: departureTimeInput.value,
+    profile: profileInput.value,
+    units: state.preferences.units,
+    notes: tripData.notes,
+    showDirections: showDirectionsInput.checked
+  };
+
+  state.recentTrips = [
+    entry,
+    ...state.recentTrips.filter((trip) => !(
+      trip.source === entry.source
+      && trip.destination === entry.destination
+      && trip.departureTime === entry.departureTime
+      && trip.profile === entry.profile
+    ))
+  ].slice(0, 6);
+
+  saveRecentTrips();
+  renderRecentTrips();
+}
+
+function applySavedTrip(trip) {
+  sourceInput.value = trip.source;
+  destinationInput.value = trip.destination;
+  departureTimeInput.value = trip.departureTime;
+  profileInput.value = trip.profile;
+  unitsInput.value = trip.units || "imperial";
+  tripNotesInput.value = trip.notes || "";
+  showDirectionsInput.checked = trip.showDirections !== false;
+  state.preferences.units = unitsInput.value;
+  savePreferences();
+  updateDirectionsVisibility();
+  form.requestSubmit();
+}
+
+function updateUrlFromTrip(tripData) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("source", tripData.sourcePlace.label);
+  url.searchParams.set("destination", tripData.destinationPlace.label);
+  url.searchParams.set("departure", departureTimeInput.value);
+  url.searchParams.set("profile", profileInput.value);
+  url.searchParams.set("units", state.preferences.units);
+  url.searchParams.set("directions", showDirectionsInput.checked ? "1" : "0");
+
+  if (tripData.notes) {
+    url.searchParams.set("notes", tripData.notes);
+  } else {
+    url.searchParams.delete("notes");
+  }
+
+  window.history.replaceState({}, "", url);
+}
+
+function restoreTripFromUrl() {
+  const url = new URL(window.location.href);
+  const source = url.searchParams.get("source");
+  const destination = url.searchParams.get("destination");
+  const departure = url.searchParams.get("departure");
+  const profile = url.searchParams.get("profile");
+  const units = url.searchParams.get("units");
+  const notes = url.searchParams.get("notes");
+  const directions = url.searchParams.get("directions");
+
+  if (source) {
+    sourceInput.value = source;
+  }
+  if (destination) {
+    destinationInput.value = destination;
+  }
+  if (departure) {
+    departureTimeInput.value = departure;
+  }
+  if (profile && ["driving", "cycling", "walking"].includes(profile)) {
+    profileInput.value = profile;
+  }
+  if (units && ["imperial", "metric"].includes(units)) {
+    state.preferences.units = units;
+    unitsInput.value = units;
+  }
+  if (notes) {
+    tripNotesInput.value = notes;
+  }
+  if (directions === "0") {
+    showDirectionsInput.checked = false;
+    updateDirectionsVisibility();
+  }
+
+  if (source && destination && departure) {
+    window.setTimeout(() => {
+      form.requestSubmit();
+    }, 0);
+  }
 }
 
 async function handleUseMyLocation() {
@@ -1514,6 +1914,13 @@ function buildOpenStreetMapDirectionsUrl(sourcePlace, destinationPlace) {
   return url.toString();
 }
 
+function buildWazeUrl(destinationPlace) {
+  const url = new URL("https://www.waze.com/ul");
+  url.searchParams.set("ll", `${destinationPlace.latitude},${destinationPlace.longitude}`);
+  url.searchParams.set("navigate", "yes");
+  return url.toString();
+}
+
 function formatDistance(distanceMeters) {
   if (distanceMeters < 161) {
     return `${Math.round(distanceMeters * 3.28084)} ft`;
@@ -1521,6 +1928,19 @@ function formatDistance(distanceMeters) {
 
   const miles = distanceMeters * 0.000621371;
   return miles >= 10 ? `${miles.toFixed(0)} mi` : `${miles.toFixed(1)} mi`;
+}
+
+function formatDistanceFromMeters(distanceMeters) {
+  if (state.preferences.units === "metric") {
+    if (distanceMeters < 1000) {
+      return `${Math.round(distanceMeters)} m`;
+    }
+
+    const kilometers = distanceMeters / 1000;
+    return kilometers >= 10 ? `${kilometers.toFixed(0)} km` : `${kilometers.toFixed(1)} km`;
+  }
+
+  return formatDistance(distanceMeters);
 }
 
 function formatDuration(durationSeconds) {
@@ -1539,6 +1959,30 @@ function formatDuration(durationSeconds) {
   return `${hours} hr ${minutes} min`;
 }
 
+function formatTemperature(fahrenheitValue) {
+  if (state.preferences.units === "metric") {
+    return `${Math.round((fahrenheitValue - 32) * (5 / 9))}C`;
+  }
+
+  return `${fahrenheitValue}F`;
+}
+
+function formatWind(mphValue) {
+  if (state.preferences.units === "metric") {
+    return `${Math.round(mphValue * 1.60934)} km/h wind`;
+  }
+
+  return `${mphValue} mph wind`;
+}
+
+function formatSpeedFromMetersPerSecond(metersPerSecond) {
+  if (state.preferences.units === "metric") {
+    return `${Math.round(metersPerSecond * 3.6)} km/h`;
+  }
+
+  return `${Math.round(metersPerSecond * 2.23694)} mph`;
+}
+
 function toLocalInputValue(date) {
   const offset = date.getTimezoneOffset();
   const localDate = new Date(date.getTime() - offset * 60 * 1000);
@@ -1555,11 +1999,139 @@ function formatDateTime(date) {
   }).format(date);
 }
 
+function formatSavedTripDate(localInputValue) {
+  return formatDateTime(new Date(localInputValue));
+}
+
 function formatTime(date) {
   return new Intl.DateTimeFormat(undefined, {
     hour: "numeric",
     minute: "2-digit"
   }).format(date);
+}
+
+function getRouteRisk(checkpoints) {
+  const maxPrecip = Math.max(...checkpoints.map((checkpoint) => checkpoint.precipitationProbability));
+  const severeCode = checkpoints.some((checkpoint) => checkpoint.weatherCode >= 95);
+
+  if (severeCode || maxPrecip >= 75) {
+    return { label: "Rough stretch likely" };
+  }
+
+  if (maxPrecip >= 40) {
+    return { label: "Some weather risk" };
+  }
+
+  return { label: "Mostly calm route" };
+}
+
+function describeLightCondition(date, sunData) {
+  if (date < sunData.sunrise) {
+    return "Before sunrise";
+  }
+
+  if (date > sunData.sunset) {
+    return "After sunset";
+  }
+
+  const hoursToSunset = (sunData.sunset.getTime() - date.getTime()) / (1000 * 60 * 60);
+  return hoursToSunset < 1.5 ? "Near sunset" : "Daylight";
+}
+
+function buildProgressMarkup(checkpoints) {
+  const cappedCount = Math.min(checkpoints.length, 12);
+  const indexes = Array.from({ length: cappedCount }, (_, index) => Math.round(index * ((checkpoints.length - 1) / Math.max(cappedCount - 1, 1))));
+  return indexes.map(() => '<span class="progress-stop"></span>').join("");
+}
+
+function getVisibleDirections(directions) {
+  const filterTerm = state.preferences.directionFilter.toLowerCase();
+  return directions.filter((direction) => {
+    const matchesText = !filterTerm
+      || direction.instruction.toLowerCase().includes(filterTerm)
+      || direction.roadName.toLowerCase().includes(filterTerm);
+    const matchesMajor = !state.preferences.majorStepsOnly || direction.distanceMeters >= 500;
+    return matchesText && matchesMajor;
+  });
+}
+
+function getTripShareUrl(tripData) {
+  const url = new URL(window.location.href);
+  url.searchParams.set("source", tripData.sourcePlace.label);
+  url.searchParams.set("destination", tripData.destinationPlace.label);
+  url.searchParams.set("departure", departureTimeInput.value);
+  url.searchParams.set("profile", profileInput.value);
+  url.searchParams.set("units", state.preferences.units);
+  url.searchParams.set("directions", showDirectionsInput.checked ? "1" : "0");
+
+  if (tripData.notes) {
+    url.searchParams.set("notes", tripData.notes);
+  } else {
+    url.searchParams.delete("notes");
+  }
+
+  return url.toString();
+}
+
+function buildTripSummaryText(tripData, includeSteps = false) {
+  const { sourcePlace, destinationPlace, route, departureDate, checkpoints, directions, notes, sunData } = tripData;
+  const arrivalDate = checkpoints.at(-1).eta;
+  const risk = getRouteRisk(checkpoints).label;
+  const lines = [
+    `Trip: ${sourcePlace.label} -> ${destinationPlace.label}`,
+    `Departure: ${formatDateTime(departureDate)}`,
+    `Arrival: ${formatDateTime(arrivalDate)} (${describeLightCondition(arrivalDate, sunData.arrival)})`,
+    `Travel mode: ${capitalize(profileInput.value)}`,
+    `Distance: ${formatDistanceFromMeters(route.distanceMeters)}`,
+    `Duration: ${formatDuration(route.durationSeconds)}`,
+    `Average speed: ${formatSpeedFromMetersPerSecond(route.distanceMeters / route.durationSeconds)}`,
+    `Weather risk: ${risk}`,
+    `Sunrise at start: ${formatTime(sunData.departure.sunrise)}`,
+    `Sunset at destination: ${formatTime(sunData.arrival.sunset)}`,
+    `Weather checkpoints: ${checkpoints.length}`
+  ];
+
+  if (notes) {
+    lines.push(`Notes: ${notes}`);
+  }
+
+  if (includeSteps) {
+    lines.push("");
+    lines.push("Weather checkpoints:");
+    checkpoints.forEach((checkpoint) => {
+      lines.push(`- ${checkpoint.label} | ${formatDateTime(checkpoint.eta)} | ${checkpoint.weatherLabel}, ${formatTemperature(checkpoint.temperature)}, ${checkpoint.precipitationProbability}% precip, ${formatWind(checkpoint.windSpeed)}`);
+    });
+    lines.push("");
+    lines.push("Directions:");
+    directions.forEach((direction) => {
+      lines.push(`- ${direction.instruction} (${direction.distanceText}, ${direction.durationText})`);
+    });
+  }
+
+  return lines.join("\n");
+}
+
+function downloadTextFile(filename, contents) {
+  const blob = new Blob([contents], { type: "text/plain;charset=utf-8" });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement("a");
+  link.href = url;
+  link.download = filename;
+  link.click();
+  URL.revokeObjectURL(url);
+}
+
+async function copyText(value) {
+  try {
+    if (navigator.clipboard?.writeText) {
+      await navigator.clipboard.writeText(value);
+      return true;
+    }
+  } catch {
+    return false;
+  }
+
+  return false;
 }
 
 function lerp(start, end, amount) {
